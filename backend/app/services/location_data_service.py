@@ -165,6 +165,12 @@ class LocationDataService:
             
             items = []
             for poi in poi_response.pois:
+                # Extract website URL if available
+                website_url = poi.tags.website
+                # Ensure URL has protocol
+                if website_url and not website_url.startswith(('http://', 'https://')):
+                    website_url = f"https://{website_url}"
+                
                 items.append(LocationItem(
                     id=f"poi_{poi.id}",
                     type="poi",
@@ -176,7 +182,7 @@ class LocationDataService:
                     subtype=poi.type,
                     distance_km=poi.distance or None,
                     date=None,
-                    url=None,
+                    url=website_url,  # Use website as URL
                     metadata={
                         "amenity": poi.tags.amenity,
                         "opening_hours": poi.tags.opening_hours,
@@ -245,6 +251,9 @@ class LocationDataService:
             items = []
             for crime in crime_response.crimes:
                 if crime.location and crime.location.latitude and crime.location.longitude:
+                    # Generate URL to UK Police website for this location
+                    crime_url = f"https://www.police.uk/pu/your-area/?q={crime.location.latitude},{crime.location.longitude}"
+                    
                     items.append(LocationItem(
                         id=f"crime_{crime.id}",
                         type="crime",
@@ -256,10 +265,11 @@ class LocationDataService:
                         subtype=crime.category,
                         distance_km=None,
                         date=crime.date,
-                        url=None,
+                        url=crime_url,  # Add URL for crime location on UK Police website
                         metadata={
                             "crime_type": crime.category,
-                            "month": crime.month if hasattr(crime, 'month') else None
+                            "month": crime.month if hasattr(crime, 'month') else None,
+                            "persistent_id": crime.persistent_id if hasattr(crime, 'persistent_id') else None
                         }
                     ))
             

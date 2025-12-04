@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { getLocationData, addInteraction } from '../services/api';
 import { useMapStore } from '../stores/mapStore';
 
@@ -10,6 +10,7 @@ export default function LocationDataList() {
   const { center } = useMapStore();
   const [filterType, setFilterType] = useState('all'); // 'all', 'event', 'poi', 'news', 'crime'
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedItem, setSelectedItem] = useState(null); // For modal
   const [userId] = useState(() => {
     // Generate or retrieve user ID (for academic purposes, use session storage)
     let id = sessionStorage.getItem('userId');
@@ -101,8 +102,50 @@ export default function LocationDataList() {
     );
   }
 
-  const handleLike = (item) => {
+  const handleLike = (e, item) => {
+    e.stopPropagation(); // Prevent opening modal when clicking like button
+    
+    // Optimistically update the UI immediately
+    queryClient.setQueryData(['location-data', center, userId], (oldData) => {
+      if (!oldData) return oldData;
+      
+      const updateItem = (items) => items.map(i => 
+        i.id === item.id && i.type === item.type
+          ? { ...i, is_liked: !i.is_liked }
+          : i
+      );
+      
+      return {
+        ...oldData,
+        events: updateItem(oldData.events || []),
+        pois: updateItem(oldData.pois || []),
+        news: updateItem(oldData.news || []),
+        crimes: updateItem(oldData.crimes || [])
+      };
+    });
+    
+    // Also update selectedItem if modal is open
+    if (selectedItem && selectedItem.id === item.id && selectedItem.type === item.type) {
+      setSelectedItem({ ...selectedItem, is_liked: !selectedItem.is_liked });
+    }
+    
+    // Then make the API call
     interactionMutation.mutate({ item, interactionType: 'like' });
+  };
+
+  const handleItemClick = (item) => {
+    // Ensure all numeric fields are properly converted
+    const processedItem = {
+      ...item,
+      lat: item.lat ? Number(item.lat) : null,
+      lon: item.lon ? Number(item.lon) : null,
+      distance_km: item.distance_km ? Number(item.distance_km) : null,
+    };
+    setSelectedItem(processedItem);
+  };
+
+  const closeModal = () => {
+    setSelectedItem(null);
   };
 
   const getTypeIcon = (type) => {
@@ -161,6 +204,7 @@ export default function LocationDataList() {
 
   // Debug logging (remove in production)
   if (process.env.NODE_ENV === 'development') {
+    console.log("Events: ", events)
     console.log('Location Data Debug:', {
       events: events.length,
       pois: pois.length,
@@ -363,7 +407,8 @@ export default function LocationDataList() {
             {paginatedItems.map((item, index) => (
           <div
             key={`${item.id}-${index}`}
-            className={`p-3 border rounded-lg transition-colors ${getTypeColor(item.type)}`}
+            className={`p-3 border rounded-lg transition-colors cursor-pointer hover:shadow-md ${getTypeColor(item.type)}`}
+            onClick={() => handleItemClick(item)}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -384,7 +429,7 @@ export default function LocationDataList() {
                   )}
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     {item.distance_km && (
-                      <span>📍 {item.distance_km.toFixed(1)} km</span>
+                      <span>📍 {Number(item.distance_km).toFixed(1)} km</span>
                     )}
                     {item.category && (
                       <span>• {item.category}</span>
@@ -397,7 +442,7 @@ export default function LocationDataList() {
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
-                  onClick={() => handleLike(item)}
+                  onClick={(e) => handleLike(e, item)}
                   className={`p-1.5 rounded transition-colors ${
                     item.is_liked
                       ? 'text-red-600 hover:bg-red-100'
@@ -406,11 +451,7 @@ export default function LocationDataList() {
                   title={item.is_liked ? 'Unlike' : 'Like'}
                   disabled={interactionMutation.isLoading}
                 >
-                  {item.is_liked ? (
-                    <Heart className="w-4 h-4 fill-current" />
-                  ) : (
-                    <Heart className="w-4 h-4" />
-                  )}
+                  <Heart className={`w-4 h-4 ${item.is_liked ? 'fill-current' : ''}`} />
                 </button>
               </div>
             </div>
@@ -455,6 +496,147 @@ export default function LocationDataList() {
             </div>
           )}
         </>
+      )}
+
+      {/* Modal for item details - small card popup */}
+      {selectedItem && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-[9999] p-4"
+          onClick={closeModal}
+        >
+          <div 
+            className={`bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto z-[10000] ${getTypeColor(selectedItem.type || 'poi')}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between p-4 border-b border-gray-200">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <span className="text-2xl flex-shrink-0">{getTypeIcon(selectedItem.type)}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-lg font-semibold text-gray-900 truncate">{selectedItem.title}</h2>
+                    <span className="text-xs px-2 py-0.5 rounded bg-white/50 flex-shrink-0">
+                      {selectedItem.section}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
+                    {selectedItem.category && (
+                      <span className="font-medium">Category: {selectedItem.category}</span>
+                    )}
+                    {selectedItem.subtype && (
+                      <span>Type: {selectedItem.subtype}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={(e) => handleLike(e, selectedItem)}
+                  className={`p-1.5 rounded-full transition-colors ${
+                    selectedItem.is_liked
+                      ? 'text-red-600 hover:bg-red-100'
+                      : 'text-gray-400 hover:text-red-600 hover:bg-gray-100'
+                  }`}
+                  title={selectedItem.is_liked ? 'Unlike' : 'Like'}
+                  disabled={interactionMutation.isLoading}
+                >
+                  <Heart className={`w-5 h-5 ${selectedItem.is_liked ? 'fill-current' : ''}`} />
+                </button>
+                <button
+                  onClick={closeModal}
+                  className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                  title="Close"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 space-y-3">
+              {selectedItem.description && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedItem.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3">
+                {selectedItem.distance_km && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Distance</h3>
+                    <p className="text-sm text-gray-900">📍 {Number(selectedItem.distance_km).toFixed(1)} km</p>
+                  </div>
+                )}
+                {selectedItem.date && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Date</h3>
+                    <p className="text-sm text-gray-900">
+                      {(() => {
+                        try {
+                          return new Date(selectedItem.date).toLocaleDateString('en-GB', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          });
+                        } catch (e) {
+                          return selectedItem.date;
+                        }
+                      })()}
+                    </p>
+                  </div>
+                )}
+                {selectedItem.lat && selectedItem.lon && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Location</h3>
+                    <p className="text-sm text-gray-900">
+                      {Number(selectedItem.lat).toFixed(4)}, {Number(selectedItem.lon).toFixed(4)}
+                    </p>
+                  </div>
+                )}
+                {selectedItem.location_name && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Address</h3>
+                    <p className="text-sm text-gray-900">{selectedItem.location_name}</p>
+                  </div>
+                )}
+              </div>
+
+              {(selectedItem.url || selectedItem.metadata?.website) && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 mb-2">Link</h3>
+                  <a 
+                    href={selectedItem.url || selectedItem.metadata?.website} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:text-blue-800 underline break-all"
+                  >
+                    {selectedItem.url || selectedItem.metadata?.website}
+                  </a>
+                </div>
+              )}
+
+              {selectedItem.metadata && Object.keys(selectedItem.metadata).length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 mb-2">Additional Information</h3>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <dl className="grid grid-cols-2 gap-2 text-sm">
+                      {Object.entries(selectedItem.metadata).map(([key, value]) => (
+                        value && (
+                          <div key={key}>
+                            <dt className="font-medium text-gray-700 capitalize">{key.replace(/_/g, ' ')}:</dt>
+                            <dd className="text-gray-600">{String(value)}</dd>
+                          </div>
+                        )
+                      ))}
+                    </dl>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
       )}
     </div>
   );
