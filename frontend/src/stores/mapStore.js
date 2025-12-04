@@ -4,6 +4,7 @@ export const useMapStore = create((set, get) => ({
   center: { lat: 51.5074, lon: -0.1278 },
   zoom: 11,
   recentSearches: [],
+  showRecentSearches: false,
   layers: {
     crimes: true,
     events: true,
@@ -13,6 +14,7 @@ export const useMapStore = create((set, get) => ({
   },
   setCenter: (lat, lon) => set({ center: { lat, lon } }),
   setZoom: (zoom) => set({ zoom }),
+  setShowRecentSearches: (show) => set({ showRecentSearches: show }),
   toggleLayer: (key) => set((state) => ({ layers: { ...state.layers, [key]: !state.layers[key] } })),
   addRecentSearch: (item) => set((state) => {
     const exists = state.recentSearches.find((s) => s.query === item.query);

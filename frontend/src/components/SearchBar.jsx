@@ -10,6 +10,7 @@ export default function SearchBar() {
   const setCenter = useMapStore((s) => s.setCenter);
   const addRecentSearch = useMapStore((s) => s.addRecentSearch);
   const recentSearches = useMapStore((s) => s.recentSearches);
+  const setShowRecentSearches = useMapStore((s) => s.setShowRecentSearches);
 
   const { mutate, isLoading } = useMutation({
     mutationFn: (q) => geocode(q, 1, 'gb'),
@@ -21,6 +22,7 @@ export default function SearchBar() {
         setCenter(latNum, lonNum);
         addRecentSearch({ query: display_name || query, lat: latNum, lon: lonNum, ts: Date.now() });
         setShowRecent(false);
+        setShowRecentSearches(false);
         setSuccessMessage(`Found: ${display_name || query}`);
         setTimeout(() => setSuccessMessage(''), 3000);
       }
@@ -42,6 +44,7 @@ export default function SearchBar() {
     setQuery(search.query);
     setCenter(search.lat, search.lon);
     setShowRecent(false);
+    setShowRecentSearches(false);
   };
 
   const formatTime = (ts) => {
@@ -57,7 +60,7 @@ export default function SearchBar() {
   };
 
   return (
-    <div className="relative w-full space-y-2">
+    <div className="relative w-full space-y-2 z-[1000]">
       <form onSubmit={onSubmit} className="flex w-full gap-2">
         <div className="relative flex-1">
           <input
@@ -65,14 +68,26 @@ export default function SearchBar() {
             placeholder="Search by place or postcode (UK)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setShowRecent(true)}
-            onBlur={() => setTimeout(() => setShowRecent(false), 200)}
+            onFocus={() => {
+              setShowRecent(true);
+              setShowRecentSearches(true);
+            }}
+            onBlur={() => {
+              setTimeout(() => {
+                setShowRecent(false);
+                setShowRecentSearches(false);
+              }, 200);
+            }}
           />
           {recentSearches.length > 0 && (
             <button
               type="button"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              onClick={() => setShowRecent(!showRecent)}
+              onClick={() => {
+                const newState = !showRecent;
+                setShowRecent(newState);
+                setShowRecentSearches(newState);
+              }}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -98,27 +113,26 @@ export default function SearchBar() {
 
       {/* Recent Searches Dropdown */}
       {showRecent && recentSearches.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[1001] overflow-hidden">
           <div className="p-2 text-xs text-gray-500 border-b border-gray-100">
             Recent searches
           </div>
-          {recentSearches.map((search, index) => (
-            <button
-              key={index}
-              className="w-full text-left px-3 py-2 hover:bg-gray-50 flex justify-between items-center"
-              onClick={() => handleRecentClick(search)}
-            >
-              <div>
-                <div className="font-medium text-gray-900 truncate">{search.query}</div>
-                <div className="text-xs text-gray-500">
-                  {search.lat.toFixed(4)}, {search.lon.toFixed(4)}
+          <div>
+            {recentSearches.slice(0, 4).map((search, index) => (
+              <button
+                key={index}
+                className="w-full text-left px-3 py-2 hover:bg-gray-50 flex justify-between items-center border-b border-gray-50 last:border-b-0"
+                onClick={() => handleRecentClick(search)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-900 truncate">{search.query}</div>
+                  <div className="text-xs text-gray-500">
+                    {search.lat.toFixed(4)}, {search.lon.toFixed(4)}
+                  </div>
                 </div>
-              </div>
-              <div className="text-xs text-gray-400 ml-2">
-                {formatTime(search.ts)}
-              </div>
-            </button>
-          ))}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

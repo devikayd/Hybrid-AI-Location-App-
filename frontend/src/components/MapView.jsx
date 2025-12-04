@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useMapStore } from '../stores/mapStore';
@@ -28,7 +28,7 @@ function RecenterOnChange({ lat, lon, zoom }) {
 }
 
 export default function MapView() {
-  const { center, zoom, layers, toggleLayer } = useMapStore();
+  const { center, zoom, layers, toggleLayer, showRecentSearches } = useMapStore();
 
   return (
     <div className="w-full rounded-lg overflow-hidden border border-gray-200">
@@ -39,12 +39,32 @@ export default function MapView() {
           </button>
         ))}
       </div>
-      <div className="h-[70vh]">
-        <MapContainer center={[center.lat, center.lon]} zoom={zoom} style={{ height: '100%', width: '100%' }}>
+      <div className="h-[70vh] relative">
+        <MapContainer 
+          center={[center.lat, center.lon]} 
+          zoom={zoom} 
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+        >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+
+          {!showRecentSearches && <ZoomControl position="topleft" />}
+          
+          <style>{`
+            .leaflet-control-zoom {
+              margin-top: 10px !important;
+              margin-left: 10px !important;
+            }
+            .leaflet-control-zoom a {
+              width: 30px !important;
+              height: 30px !important;
+              line-height: 30px !important;
+              font-size: 18px !important;
+            }
+          `}</style>
 
           <Marker position={[center.lat, center.lon]}>
             <Popup>
