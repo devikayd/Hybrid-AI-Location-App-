@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.redis import init_redis
-from app.routers import health as status, geocode, crime, events, news, pois, summary, hotspots, scoring, data_collection, data_cleaning, feature_engineering, model_training, location_data, user_interaction, user_recommendations
+from app.routers import health as status, geocode, crime, events, news, pois, summary, scoring, data_collection, data_cleaning, feature_engineering, model_training, location_data, user_interaction, user_recommendations
 from app.core.exceptions import setup_exception_handlers
 
 # Import models to ensure they're registered with Base before database initialization
@@ -88,7 +88,6 @@ app.include_router(events.router, prefix="/api/v1", tags=["events"])
 app.include_router(news.router, prefix="/api/v1", tags=["news"])
 app.include_router(pois.router, prefix="/api/v1", tags=["pois"])
 app.include_router(summary.router, prefix="/api/v1", tags=["summary"])
-app.include_router(hotspots.router, prefix="/api/v1", tags=["hotspots"])
 app.include_router(scoring.router, prefix="/api/v1", tags=["scoring"])
 app.include_router(location_data.router, prefix="/api/v1", tags=["location-data"])
 app.include_router(user_interaction.router, prefix="/api/v1", tags=["user-interactions"])
@@ -124,7 +123,6 @@ async def api_root():
             "news": "/api/v1/news",
             "pois": "/api/v1/pois",
             "summary": "/api/v1/summarise",
-            "hotspots": "/api/v1/hotspots",
             "scoring": "/api/v1/scores",
             "location-data": "/api/v1/location-data",
             "user-interactions": "/api/v1/interaction",

@@ -16,12 +16,12 @@ function App() {
       <Header />
 
       <main className="flex-1">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="max-w-[95vw] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row gap-4">
+          <div className="flex-1 space-y-4">
             <SearchBar />
             <MapView />
           </div>
-          <div>
+          <div className="w-full lg:w-80 flex-shrink-0">
             <SidePanel />
           </div>
         </div>

@@ -77,13 +77,6 @@ export default function SidePanel() {
       <div className="card">
         <h3 className="text-sm font-medium mb-2">AI Summary</h3>
         <p className="text-sm text-gray-800 whitespace-pre-wrap">{summary?.narrative || 'Searching area for insights...'}</p>
-        {summary?.keywords?.length ? (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {summary.keywords.map((k, idx) => (
-              <span key={idx} className="badge badge-info">{k}</span>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       <LocationDataList />

@@ -48,28 +48,6 @@ class SummarizeRequest(BaseModel):
     max_items_per_type: int = Field(50, ge=1, le=200, description="Maximum items per data type")
 
 
-class HotspotData(BaseModel):
-    """Hotspot cluster data"""
-    lat: Decimal = Field(..., description="Cluster center latitude")
-    lon: Decimal = Field(..., description="Cluster center longitude")
-    radius_m: float = Field(..., description="Cluster radius in meters")
-    intensity: float = Field(..., description="Cluster intensity score")
-    item_count: int = Field(..., description="Number of items in cluster")
-    item_types: Dict[str, int] = Field(default_factory=dict, description="Item counts by type")
-    cluster_id: int = Field(..., description="Unique cluster identifier")
-
-
-class HotspotsResponse(BaseModel):
-    """Hotspots response schema"""
-    lat: Decimal = Field(..., description="Search center latitude")
-    lon: Decimal = Field(..., description="Search center longitude")
-    radius_km: int = Field(..., description="Search radius in kilometers")
-    hotspots: List[HotspotData] = Field(..., description="Detected hotspots")
-    geojson: Dict[str, Any] = Field(..., description="GeoJSON representation")
-    cached: bool = Field(False, description="Whether result was served from cache")
-    source: str = Field("dbscan_clustering", description="Clustering method")
-
-
 class RecommendationItem(BaseModel):
     """Recommendation item"""
     id: str = Field(..., description="Item identifier")

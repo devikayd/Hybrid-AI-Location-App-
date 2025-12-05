@@ -49,11 +49,6 @@ export const getSummary = async (params) => {
   return res.data;
 };
 
-export const getHotspots = async (params) => {
-  const res = await api.get('/v1/hotspots', { params });
-  return res.data;
-};
-
 export const getScores = async (params) => {
   const res = await api.get('/v1/scores', { params });
   return res.data;

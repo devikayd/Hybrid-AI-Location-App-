@@ -10,7 +10,6 @@ export const useMapStore = create((set, get) => ({
     events: true,
     news: true,
     pois: true,
-    hotspots: false,
   },
   setCenter: (lat, lon) => set({ center: { lat, lon } }),
   setZoom: (zoom) => set({ zoom }),
