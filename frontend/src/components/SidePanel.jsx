@@ -1,9 +1,9 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useMapStore } from '../stores/mapStore';
 import { useSummary, useScores } from '../hooks/useDataHooks';
-import { getLocationData } from '../services/api';
+import { useLocationData } from '../hooks/useLocationData';
 import LocationDataList from './LocationDataList';
+import Recommendations from './Recommendations';
 
 function Chip({ label, value, color = 'info' }) {
   const colorClass = {
@@ -21,28 +21,8 @@ export default function SidePanel() {
   const { data: summary } = useSummary();
   const { data: scores } = useScores();
   
-  // Generate user ID (same as LocationDataList for consistency)
-  const userId = React.useMemo(() => {
-    let id = sessionStorage.getItem('userId');
-    if (!id) {
-      id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      sessionStorage.setItem('userId', id);
-    }
-    return id;
-  }, []);
-  
-  // Use the EXACT same query key and parameters as LocationDataList for consistency
-  const { data: locationData } = useQuery({
-    queryKey: ['location-data', center, userId],
-    queryFn: () => getLocationData({
-      lat: center?.lat || 51.5074,
-      lon: center?.lon || -0.1278,
-      radius_km: 10,
-      user_id: userId
-    }),
-    enabled: !!(center && center.lat && center.lon),
-    staleTime: 60_000,
-  });
+  // Use shared location data hook (prevents duplicate API calls)
+  const { data: locationData } = useLocationData();
 
   // Extract counts from location data - use same logic as LocationDataList
   const events = Array.isArray(locationData?.events) ? locationData.events : [];
@@ -80,6 +60,8 @@ export default function SidePanel() {
       </div>
 
       <LocationDataList />
+
+      <Recommendations />
 
       <div className="card">
         <h3 className="text-sm font-medium mb-2">Recent Searches</h3>

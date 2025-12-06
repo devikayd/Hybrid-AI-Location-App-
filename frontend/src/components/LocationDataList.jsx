@@ -1,40 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { getLocationData, addInteraction } from '../services/api';
+import React, { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Heart, X } from 'lucide-react';
+import { addInteraction } from '../services/api';
 import { useMapStore } from '../stores/mapStore';
+import { useLocationData } from '../hooks/useLocationData';
 
-const ITEMS_PER_PAGE = 13;
+// Max visible items in scrollable container (3-4 items)
+const MAX_VISIBLE_ITEMS = 4;
+const ITEM_HEIGHT = 110; // Approximate height per item in pixels
+const MAX_HEIGHT = MAX_VISIBLE_ITEMS * ITEM_HEIGHT; // ~440px for 4 items
 
 export default function LocationDataList() {
   const { center } = useMapStore();
   const [filterType, setFilterType] = useState('all'); // 'all', 'event', 'poi', 'news', 'crime'
-  const [currentPage, setCurrentPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState(null); // For modal
-  const [userId] = useState(() => {
-    // Generate or retrieve user ID (for academic purposes, use session storage)
+  
+  // Get userId from sessionStorage (shared with useLocationData hook)
+  const userId = React.useMemo(() => {
     let id = sessionStorage.getItem('userId');
     if (!id) {
       id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       sessionStorage.setItem('userId', id);
     }
     return id;
-  });
+  }, []);
 
   const queryClient = useQueryClient();
-
-  // Fetch location data
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['location-data', center, userId],
-    queryFn: () => getLocationData({
-      lat: center?.lat || 51.5074,
-      lon: center?.lon || -0.1278,
-      radius_km: 10,
-      user_id: userId
-    }),
-    enabled: !!(center && center.lat && center.lon),
-    staleTime: 60_000, // 1 minute
-  });
+  
+  // Use shared location data hook (prevents duplicate API calls)
+  const { data, isLoading, error } = useLocationData();
 
   // Mutation for like/save interactions - MUST be before any conditional returns
   const interactionMutation = useMutation({
@@ -52,45 +46,10 @@ export default function LocationDataList() {
     onSuccess: () => {
       // Refetch location data to update like/save status
       queryClient.invalidateQueries(['location-data', center, userId]);
-      // Also invalidate recommendations
-      queryClient.invalidateQueries(['user-recommendations', userId]);
+      // Also invalidate recommendations (invalidate all for this user regardless of center)
+      queryClient.invalidateQueries({ queryKey: ['user-recommendations'], exact: false });
     }
   });
-
-  // Reset to page 1 when filter changes or center changes - MUST be before conditional returns
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterType, center?.lat, center?.lon]);
-
-  // Ensure currentPage is valid - MUST be before conditional returns
-  useEffect(() => {
-    if (!data) return;
-    
-    // Calculate totalPages here since we need it for the effect
-    const events = Array.isArray(data.events) ? data.events : [];
-    const pois = Array.isArray(data.pois) ? data.pois : [];
-    const news = Array.isArray(data.news) ? data.news : [];
-    const crimes = Array.isArray(data.crimes) ? data.crimes : [];
-    
-    const allItems = [
-      ...events.map(item => ({ ...item, type: item.type || 'event' })),
-      ...pois.map(item => ({ ...item, type: item.type || 'poi' })),
-      ...news.map(item => ({ ...item, type: item.type || 'news' })),
-      ...crimes.map(item => ({ ...item, type: item.type || 'crime' })),
-    ];
-    
-    const filteredItems = filterType === 'all' 
-      ? allItems 
-      : allItems.filter(item => item.type === filterType);
-    
-    const totalPages = filteredItems.length > 0 
-      ? Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE))
-      : 1;
-    
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
-    }
-  }, [currentPage, filterType, data]);
 
   // Early return if no center set (AFTER all hooks)
   if (!center || !center.lat || !center.lon) {
@@ -146,6 +105,38 @@ export default function LocationDataList() {
 
   const closeModal = () => {
     setSelectedItem(null);
+  };
+
+  // Format time ago for real-time items
+  const formatTimeAgo = (hoursAgo) => {
+    if (!hoursAgo && hoursAgo !== 0) return null;
+    
+    if (hoursAgo < 1) {
+      const minutes = Math.floor(hoursAgo * 60);
+      return minutes <= 1 ? 'Just now' : `${minutes} min ago`;
+    } else if (hoursAgo < 24) {
+      const hours = Math.floor(hoursAgo);
+      return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+    } else {
+      const days = Math.floor(hoursAgo / 24);
+      return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+    }
+  };
+
+  // Format time ahead for upcoming events
+  const formatTimeAhead = (hoursAhead) => {
+    if (!hoursAhead && hoursAhead !== 0) return null;
+    
+    if (hoursAhead < 1) {
+      const minutes = Math.floor(hoursAhead * 60);
+      return minutes <= 1 ? 'Starting now' : `In ${minutes} min`;
+    } else if (hoursAhead < 24) {
+      const hours = Math.floor(hoursAhead);
+      return `In ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+    } else {
+      const days = Math.floor(hoursAhead / 24);
+      return `In ${days} ${days === 1 ? 'day' : 'days'}`;
+    }
   };
 
   const getTypeIcon = (type) => {
@@ -291,22 +282,6 @@ export default function LocationDataList() {
     ? allItems 
     : allItems.filter(item => item.type === filterType);
 
-  // Pagination logic - handle edge cases
-  const totalPages = filteredItems.length > 0 
-    ? Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE))
-    : 1;
-  const startIndex = Math.max(0, (currentPage - 1) * ITEMS_PER_PAGE);
-  const endIndex = Math.min(filteredItems.length, startIndex + ITEMS_PER_PAGE);
-  const paginatedItems = filteredItems.slice(startIndex, endIndex);
-
-  const handlePreviousPage = () => {
-    setCurrentPage(prev => Math.max(1, prev - 1));
-  };
-
-  const handleNextPage = () => {
-    setCurrentPage(prev => Math.min(totalPages, prev + 1));
-  };
-
   // Count items by type for display
   const counts = {
     events: events.length,
@@ -329,7 +304,6 @@ export default function LocationDataList() {
       </div>
     );
   }
-
   return (
     <div className="card">
       <h3 className="text-sm font-medium mb-2">Location Data</h3>
@@ -396,15 +370,17 @@ export default function LocationDataList() {
         )}
       </div>
 
-      {/* Items list */}
+      {/* Items list - scrollable container showing 4-5 items */}
       {filteredItems.length === 0 ? (
         <div className="text-sm text-gray-500 py-4 text-center">
           No {filterType === 'all' ? '' : filterType} items to display
         </div>
       ) : (
-        <>
-          <div className="space-y-3 max-h-[600px] overflow-y-auto">
-            {paginatedItems.map((item, index) => (
+        <div 
+          className="space-y-3 overflow-y-auto pr-2"
+          style={{ maxHeight: `${MAX_HEIGHT}px` }}
+        >
+          {filteredItems.map((item, index) => (
           <div
             key={`${item.id}-${index}`}
             className={`p-3 border rounded-lg transition-colors cursor-pointer hover:shadow-md ${getTypeColor(item.type)}`}
@@ -427,14 +403,30 @@ export default function LocationDataList() {
                       {item.description}
                     </p>
                   )}
-                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
+                    {/* Real-time indicator */}
+                    {item.metadata?.is_realtime && (
+                      <span className="px-1.5 py-0.5 rounded bg-red-500 text-white font-semibold text-[10px] animate-pulse">
+                        🔴 LIVE
+                      </span>
+                    )}
+                    {item.metadata?.hours_ago !== undefined && item.metadata.hours_ago !== null && (
+                      <span className="text-red-600 font-medium">
+                        {formatTimeAgo(item.metadata.hours_ago)}
+                      </span>
+                    )}
+                    {item.metadata?.hours_ahead !== undefined && item.metadata.hours_ahead !== null && (
+                      <span className="text-blue-600 font-medium">
+                        {formatTimeAhead(item.metadata.hours_ahead)}
+                      </span>
+                    )}
                     {item.distance_km && (
                       <span>📍 {Number(item.distance_km).toFixed(1)} km</span>
                     )}
                     {item.category && (
                       <span>• {item.category}</span>
                     )}
-                    {item.date && (
+                    {item.date && !item.metadata?.hours_ago && !item.metadata?.hours_ahead && (
                       <span>• {new Date(item.date).toLocaleDateString()}</span>
                     )}
                   </div>
@@ -457,45 +449,7 @@ export default function LocationDataList() {
             </div>
           </div>
           ))}
-          </div>
-
-          {/* Pagination controls */}
-          {filteredItems.length > ITEMS_PER_PAGE && (
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200">
-              <button
-                onClick={handlePreviousPage}
-                disabled={currentPage === 1}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-colors ${
-                  currentPage === 1
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-                title="Previous page"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </button>
-              
-              <span className="text-sm text-gray-600">
-                Page {currentPage} of {totalPages}
-              </span>
-              
-              <button
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-colors ${
-                  currentPage === totalPages
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-                title="Next page"
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </>
+        </div>
       )}
 
       {/* Modal for item details - small card popup */}
@@ -520,6 +474,22 @@ export default function LocationDataList() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
+                    {/* Real-time indicator in modal */}
+                    {selectedItem.metadata?.is_realtime && (
+                      <span className="px-2 py-0.5 rounded bg-red-500 text-white font-semibold animate-pulse">
+                        🔴 LIVE
+                      </span>
+                    )}
+                    {selectedItem.metadata?.hours_ago !== undefined && selectedItem.metadata.hours_ago !== null && (
+                      <span className="text-red-600 font-medium">
+                        {formatTimeAgo(selectedItem.metadata.hours_ago)}
+                      </span>
+                    )}
+                    {selectedItem.metadata?.hours_ahead !== undefined && selectedItem.metadata.hours_ahead !== null && (
+                      <span className="text-blue-600 font-medium">
+                        {formatTimeAhead(selectedItem.metadata.hours_ahead)}
+                      </span>
+                    )}
                     {selectedItem.category && (
                       <span className="font-medium">Category: {selectedItem.category}</span>
                     )}
@@ -566,6 +536,29 @@ export default function LocationDataList() {
                   <div>
                     <h3 className="text-xs font-semibold text-gray-500 mb-1">Distance</h3>
                     <p className="text-sm text-gray-900">📍 {Number(selectedItem.distance_km).toFixed(1)} km</p>
+                  </div>
+                )}
+                {/* Real-time status */}
+                {(selectedItem.metadata?.is_realtime || selectedItem.metadata?.hours_ago !== undefined || selectedItem.metadata?.hours_ahead !== undefined) && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Status</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {selectedItem.metadata?.is_realtime && (
+                        <span className="px-2 py-1 rounded bg-red-500 text-white font-semibold text-xs animate-pulse">
+                          🔴 LIVE
+                        </span>
+                      )}
+                      {selectedItem.metadata?.hours_ago !== undefined && selectedItem.metadata.hours_ago !== null && (
+                        <span className="text-sm text-red-600 font-medium">
+                          {formatTimeAgo(selectedItem.metadata.hours_ago)}
+                        </span>
+                      )}
+                      {selectedItem.metadata?.hours_ahead !== undefined && selectedItem.metadata.hours_ahead !== null && (
+                        <span className="text-sm text-blue-600 font-medium">
+                          {formatTimeAhead(selectedItem.metadata.hours_ahead)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
                 {selectedItem.date && (

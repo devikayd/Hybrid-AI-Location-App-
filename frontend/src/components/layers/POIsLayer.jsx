@@ -1,9 +1,7 @@
 import React from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { useQuery } from '@tanstack/react-query';
-import { getLocationData } from '../../services/api';
-import { useMapStore } from '../../stores/mapStore';
+import { useLocationData } from '../../hooks/useLocationData';
 
 // Create custom green icon for POIs
 const poiIcon = new L.Icon({
@@ -22,27 +20,8 @@ const poiIcon = new L.Icon({
 });
 
 export default function POIsLayer() {
-  const { center } = useMapStore();
-  const userId = React.useMemo(() => {
-    let id = sessionStorage.getItem('userId');
-    if (!id) {
-      id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      sessionStorage.setItem('userId', id);
-    }
-    return id;
-  }, []);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['location-data', center, userId],
-    queryFn: () => getLocationData({
-      lat: center?.lat || 51.5074,
-      lon: center?.lon || -0.1278,
-      radius_km: 10,
-      user_id: userId
-    }),
-    enabled: !!(center && center.lat && center.lon),
-    staleTime: 60_000,
-  });
+  // Use shared location data hook (prevents duplicate API calls)
+  const { data, isLoading } = useLocationData();
 
   if (isLoading || !data?.pois?.length) return null;
 

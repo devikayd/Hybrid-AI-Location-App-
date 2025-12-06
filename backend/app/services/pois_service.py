@@ -148,46 +148,46 @@ class POIsService:
         for instance_url in overpass_instances:
             try:
                 # Build optimized Overpass QL query
-                query = self._build_overpass_query(lat, lon, radius_m, types)
-                
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    try:
-                        response = await client.post(
+        query = self._build_overpass_query(lat, lon, radius_m, types)
+        
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                response = await client.post(
                             f"{instance_url}/interpreter",
-                            data=query,
-                            headers={"Content-Type": "text/plain"}
-                        )
-                        response.raise_for_status()
-                        
-                        data = response.json()
-                        elements = data.get("elements", [])
-                        
-                        # Convert to our schema and limit results
-                        pois = []
-                        for element in elements[:limit]:
-                            try:
-                                poi = self._convert_element_to_poi(element, lat, lon)
-                                if poi:
-                                    pois.append(poi)
-                            except Exception as e:
-                                logger.warning(f"Invalid POI element: {e}")
-                                continue
-                        
+                    data=query,
+                    headers={"Content-Type": "text/plain"}
+                )
+                response.raise_for_status()
+                
+                data = response.json()
+                elements = data.get("elements", [])
+                
+                # Convert to our schema and limit results
+                pois = []
+                for element in elements[:limit]:
+                    try:
+                        poi = self._convert_element_to_poi(element, lat, lon)
+                        if poi:
+                            pois.append(poi)
+                    except Exception as e:
+                        logger.warning(f"Invalid POI element: {e}")
+                        continue
+                
                         logger.info(f"Fetched {len(pois)} POIs from {instance_url} for location {lat}, {lon}")
-                        return pois
-                        
-                    except httpx.TimeoutException:
+                return pois
+                
+            except httpx.TimeoutException:
                         logger.warning(f"Timeout from {instance_url}, trying next instance...")
                         last_error = ExternalAPIException("Overpass", f"Request timeout from {instance_url}")
                         continue
-                    except httpx.HTTPStatusError as e:
+            except httpx.HTTPStatusError as e:
                         if e.response.status_code == 504:
                             logger.warning(f"504 Gateway Timeout from {instance_url}, trying next instance...")
                             last_error = ExternalAPIException("Overpass", f"HTTP 504 Gateway Timeout from {instance_url}")
                             continue
                         else:
-                            raise ExternalAPIException("Overpass", f"HTTP {e.response.status_code}: {e.response.text}")
-                    except httpx.RequestError as e:
+                raise ExternalAPIException("Overpass", f"HTTP {e.response.status_code}: {e.response.text}")
+            except httpx.RequestError as e:
                         logger.warning(f"Request error from {instance_url}: {e}, trying next instance...")
                         last_error = ExternalAPIException("Overpass", f"Request error: {str(e)}")
                         continue
@@ -254,40 +254,54 @@ class POIsService:
         
         # Reduced POI types to prevent timeouts - focus on most common types
         if not types:
-            # Limit to most essential POI types to reduce query complexity
-            amenity_types = [
-                "restaurant", "cafe", "bar", "pub",
-                "hospital", "pharmacy", "bank", "atm",
-                "school", "university", "library", "museum",
-                "hotel", "tourist_attraction"
+            # Priority order: Tourist attractions, Amenities, Essential amenities, Shops
+            # Priority 1: Tourist attractions
+            tourism_types = [
+                "attraction", "museum", "gallery", "zoo", "theme_park",
+                "viewpoint", "monument", "memorial", "artwork", "castle"
             ]
-            tourism_types = ["attraction", "museum"]
-            shop_types = ["supermarket", "convenience"]
+            
+            # Priority 2 & 3: Amenities (includes essential and non-essential)
+            amenity_types = [
+                "restaurant", "cafe", "bar", "pub", "fast_food",
+                "cinema", "theatre", "library", "community_centre",
+                "hospital", "pharmacy", "bank", "atm", "fuel",
+                "police", "fire_station", "post_office",
+                "school", "university", "college", "kindergarten",
+                "hotel", "hostel", "guesthouse"
+            ]
+            
+            # Priority 4: Shops
+            shop_types = [
+                "supermarket", "convenience", "clothes", "electronics",
+                "books", "bakery", "butcher", "florist", "jewelry"
+            ]
         else:
             amenity_types = types.split(",")[:10]  # Limit to 10 types max
             tourism_types = []
             shop_types = []
         
         # Build the query - use union to combine results efficiently
+        # Priority order: Tourist attractions first, then amenities, then shops
         query_parts = []
         
-        # Amenity POIs (limit to prevent timeout)
-        for amenity in amenity_types[:10]:  # Max 10 amenity types
-            query_parts.append(f'node["amenity"="{amenity.strip()}"](around:{radius_m},{lat},{lon});')
-        
-        # Tourism POIs
-        for tourism in tourism_types[:5]:  # Max 5 tourism types
+        # Priority 1: Tourism POIs (tourist attractions) - fetch more of these
+        for tourism in tourism_types[:10]:  # Max 10 tourism types
             query_parts.append(f'node["tourism"="{tourism.strip()}"](around:{radius_m},{lat},{lon});')
         
-        # Shop POIs
-        for shop in shop_types[:5]:  # Max 5 shop types
+        # Priority 2 & 3: Amenity POIs (includes essential and non-essential)
+        for amenity in amenity_types[:15]:  # Max 15 amenity types
+            query_parts.append(f'node["amenity"="{amenity.strip()}"](around:{radius_m},{lat},{lon});')
+        
+        # Priority 4: Shop POIs
+        for shop in shop_types[:8]:  # Max 8 shop types
             query_parts.append(f'node["shop"="{shop.strip()}"](around:{radius_m},{lat},{lon});')
         
         # Combine all queries - use union for efficiency and limit total query size
-        # Limit total query parts to prevent timeout
-        if len(query_parts) > 15:
-            query_parts = query_parts[:15]
-            logger.warning(f"Query too complex, limiting to 15 POI types to prevent timeout")
+        # Limit total query parts to prevent timeout (increased to 25 for more POI types)
+        if len(query_parts) > 25:
+            query_parts = query_parts[:25]
+            logger.warning(f"Query too complex, limiting to 25 POI types to prevent timeout")
         
         # Use shorter timeout in query itself
         query = f"""

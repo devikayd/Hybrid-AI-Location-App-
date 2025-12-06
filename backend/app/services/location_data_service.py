@@ -6,6 +6,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
 import asyncio
+from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.core.redis import geocode_cache
@@ -25,6 +26,10 @@ class LocationDataService:
     
     def __init__(self):
         self.cache_ttl = 1800  # 30 minutes cache
+        # Real-time filtering: show only very recent incidents
+        self.recent_hours = 24  # Show items from last 24 hours (real-time)
+        # For events: show upcoming events within next 24 hours
+        self.event_future_hours = 24  # Show events happening in next 24 hours
     
     async def get_location_data(
         self,
@@ -52,6 +57,17 @@ class LocationDataService:
         else:
             # Collect all data concurrently
             events, pois, news, crimes = await self._collect_all_data(lat, lon, radius_km)
+            
+            # Filter to show only real-time/recent incidents (within last 24 hours)
+            events = self._filter_realtime_items(events, "event")
+            news = self._filter_realtime_items(news, "news")
+            crimes = self._filter_realtime_items(crimes, "crime")
+            # POIs don't have dates, so keep all of them (they're static locations)
+            
+            # Sort by recency (most recent first)
+            events = self._sort_by_recency(events)
+            news = self._sort_by_recency(news)
+            crimes = self._sort_by_recency(crimes)
             
             location_data = LocationDataResponse(
                 lat=lat,
@@ -154,13 +170,13 @@ class LocationDataService:
             return []
     
     async def _collect_pois(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
-        """Collect POI items"""
+        """Collect POI items with priority sorting"""
         try:
             poi_response = await pois_service.get_pois(
                 lat=lat,
                 lon=lon,
                 radius_km=radius_km,
-                limit=100
+                limit=200  # Get more to sort from
             )
             
             items = []
@@ -185,25 +201,83 @@ class LocationDataService:
                     url=website_url,  # Use website as URL
                     metadata={
                         "amenity": poi.tags.amenity,
+                        "tourism": poi.tags.tourism,
+                        "shop": poi.tags.shop,
                         "opening_hours": poi.tags.opening_hours,
                         "phone": poi.tags.phone,
                         "website": poi.tags.website
                     }
                 ))
             
-            return items
+            # Sort POIs by priority: Tourist attractions > Amenities > Essential amenities > Shops
+            sorted_items = self._sort_pois_by_priority(items)
+            
+            return sorted_items
         except Exception as e:
             logger.error(f"Error collecting POIs: {e}")
             return []
     
+    def _sort_pois_by_priority(self, pois: List[LocationItem]) -> List[LocationItem]:
+        """
+        Sort POIs by priority:
+        1. Tourist attractions (tourism tag)
+        2. Amenities (amenity tag, non-essential)
+        3. Essential amenities (hospitals, pharmacies, banks, etc.)
+        4. Shops (shop tag)
+        """
+        # Define essential amenities
+        essential_amenities = {
+            "hospital", "pharmacy", "bank", "atm", "fuel", "police", 
+            "fire_station", "post_office", "school", "university"
+        }
+        
+        def get_priority(poi: LocationItem) -> int:
+            """Get priority number (lower = higher priority)"""
+            metadata = poi.metadata or {}
+            tourism = metadata.get("tourism")
+            amenity = metadata.get("amenity")
+            shop = metadata.get("shop")
+            
+            # Priority 1: Tourist attractions
+            if tourism:
+                return 1
+            
+            # Priority 2: Essential amenities
+            if amenity and amenity in essential_amenities:
+                return 2
+            
+            # Priority 3: Other amenities (non-essential)
+            if amenity:
+                return 3
+            
+            # Priority 4: Shops
+            if shop:
+                return 4
+            
+            # Priority 5: Everything else
+            return 5
+        
+        # Sort by priority, then by distance (closer first)
+        sorted_pois = sorted(
+            pois,
+            key=lambda poi: (
+                get_priority(poi),
+                poi.distance_km if poi.distance_km is not None else float('inf')
+            )
+        )
+        
+        logger.info(f"Sorted {len(sorted_pois)} POIs by priority: Tourist attractions > Essential amenities > Amenities > Shops")
+        return sorted_pois
+    
     async def _collect_news(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
-        """Collect news items"""
+        """Collect news items (recent news)"""
         try:
+            # Get more news to filter from (we'll filter to recent ones)
             news_response = await news_service.get_news(
                 lat=lat,
                 lon=lon,
                 radius_km=radius_km,
-                limit=50
+                limit=100  # Get more to filter from
             )
             
             items = []
@@ -238,14 +312,143 @@ class LocationDataService:
             logger.error(f"Error collecting news: {e}")
             return []
     
+    def _filter_realtime_items(self, items: List[LocationItem], item_type: str) -> List[LocationItem]:
+        """
+        Filter items to show only real-time/recent incidents
+        For events: show upcoming events (within next 24 hours) or very recent (last 6 hours)
+        For news: filter by published date (last 24 hours)
+        For crimes: filter by crime date (last 24 hours)
+        """
+        if not items:
+            return []
+        
+        now = datetime.now(timezone.utc)
+        past_cutoff = now - timedelta(hours=self.recent_hours)
+        future_cutoff = now + timedelta(hours=self.event_future_hours)
+        filtered = []
+        
+        for item in items:
+            if not item.date:
+                # If no date, skip it (except for POIs which we handle separately)
+                continue
+            
+            try:
+                # Parse date string to datetime
+                item_date = self._parse_date(item.date)
+                
+                if not item_date:
+                    continue
+                
+                # For events: show upcoming (next 24 hours) or very recent past (last 6 hours)
+                if item_type == "event":
+                    # Show events happening soon (next 24h) or just happened (last 6h)
+                    event_past_cutoff = now - timedelta(hours=6)  # Very recent past events
+                    if (event_past_cutoff <= item_date <= future_cutoff):
+                        # Add recency metadata
+                        hours_ago = (now - item_date).total_seconds() / 3600 if item_date < now else None
+                        hours_ahead = (item_date - now).total_seconds() / 3600 if item_date > now else None
+                        is_realtime = hours_ago is not None and hours_ago <= 6
+                        
+                        if not item.metadata:
+                            item.metadata = {}
+                        item.metadata["hours_ago"] = hours_ago
+                        item.metadata["hours_ahead"] = hours_ahead
+                        item.metadata["is_realtime"] = is_realtime
+                        filtered.append(item)
+                # For news and crimes: show only very recent (last 24 hours)
+                else:
+                    if past_cutoff <= item_date <= now:
+                        # Add recency metadata
+                        hours_ago = (now - item_date).total_seconds() / 3600
+                        is_realtime = hours_ago <= 6  # Very recent (last 6 hours)
+                        
+                        if not item.metadata:
+                            item.metadata = {}
+                        item.metadata["hours_ago"] = hours_ago
+                        item.metadata["is_realtime"] = is_realtime
+                        filtered.append(item)
+                        
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Could not parse date for {item_type} item {item.id}: {item.date} - {e}")
+                # If date parsing fails, skip the item
+                continue
+        
+        logger.info(f"Filtered {item_type}: {len(items)} -> {len(filtered)} real-time items (last {self.recent_hours} hours)")
+        return filtered
+    
+    def _sort_by_recency(self, items: List[LocationItem]) -> List[LocationItem]:
+        """Sort items by recency (most recent first)"""
+        if not items:
+            return []
+        
+        def get_sort_key(item: LocationItem) -> float:
+            """Get sort key: lower = more recent"""
+            if not item.date:
+                return float('inf')  # Items without dates go to end
+            
+            try:
+                item_date = self._parse_date(item.date)
+                if not item_date:
+                    return float('inf')
+                
+                now = datetime.now(timezone.utc)
+                # For future events, use negative hours (so they come after recent past)
+                if item_date > now:
+                    hours_ahead = (item_date - now).total_seconds() / 3600
+                    return -hours_ahead  # Negative for future events
+                else:
+                    hours_ago = (now - item_date).total_seconds() / 3600
+                    return hours_ago  # Positive for past events
+            except:
+                return float('inf')
+        
+        return sorted(items, key=get_sort_key)
+    
+    def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
+        """Parse various date formats to datetime"""
+        if not date_str:
+            return None
+        
+        # Common ISO 8601 formats
+        formats = [
+            "%Y-%m-%dT%H:%M:%S%z",  # 2024-01-15T10:30:00+00:00
+            "%Y-%m-%dT%H:%M:%SZ",    # 2024-01-15T10:30:00Z
+            "%Y-%m-%dT%H:%M:%S",      # 2024-01-15T10:30:00
+            "%Y-%m-%d %H:%M:%S",     # 2024-01-15 10:30:00
+            "%Y-%m-%d",              # 2024-01-15
+        ]
+        
+        for fmt in formats:
+            try:
+                parsed = datetime.strptime(date_str, fmt)
+                # If no timezone info, assume UTC
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return parsed
+            except ValueError:
+                continue
+        
+        # Try parsing as ISO format with dateutil (if available)
+        try:
+            from dateutil import parser
+            parsed = parser.parse(date_str)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except (ImportError, ValueError, TypeError):
+            pass
+        
+        return None
+    
     async def _collect_crimes(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
         """Collect crime items"""
         try:
+            # Get crimes from last 2 months but we'll filter to last 2 days
             crime_response = await crime_service.get_crimes(
                 lat=lat,
                 lon=lon,
-                months=6,
-                limit=50
+                months=2,  # Reduced from 6 to 2 months since we filter to 2 days anyway
+                limit=100  # Get more to filter from
             )
             
             items = []
