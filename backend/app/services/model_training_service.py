@@ -6,19 +6,6 @@ What this service does:
 - Evaluates model performance
 - Saves trained models to disk
 - Supports model versioning
-
-Technologies used:
-- XGBoost: Gradient boosting models
-- scikit-learn: Evaluation metrics, cross-validation
-- joblib: Model serialization
-- pandas: Data loading and preprocessing
-- numpy: Numerical operations
-
-Why this is important:
-- ML models need training on real data
-- Trained models provide better predictions than rule-based
-- Model evaluation ensures quality
-- Model versioning tracks improvements
 """
 
 import logging
@@ -58,14 +45,6 @@ class ModelTrainingService:
     - Evaluate model performance
     - Save models to disk
     - Support model versioning
-    
-    How it works:
-    1. Load training data from database
-    2. Prepare features and labels
-    3. Split into train/test sets
-    4. Train XGBoost models
-    5. Evaluate performance
-    6. Save models to disk
     """
     
     def __init__(self):
@@ -99,20 +78,6 @@ class ModelTrainingService:
         4. Train XGBoost model
         5. Evaluate performance
         6. Save model to disk
-        
-        Parameters:
-        - test_size: Proportion of data for testing (0.2 = 20%)
-        - random_state: Random seed for reproducibility
-        - min_samples: Minimum samples required for training
-        
-        Returns:
-        - Dictionary with training results and metrics
-        
-        Example:
-        >>> service = ModelTrainingService()
-        >>> result = await service.train_safety_model()
-        >>> print(result['metrics']['r2_score'])
-        0.85
         """
         if not XGBOOST_AVAILABLE:
             raise RuntimeError("XGBoost not available. Install: pip install xgboost scikit-learn joblib")
@@ -235,7 +200,6 @@ class ModelTrainingService:
         """
         Train popularity score model
         
-        Same process as safety model but for popularity scores
         """
         if not XGBOOST_AVAILABLE:
             raise RuntimeError("XGBoost not available. Install: pip install xgboost scikit-learn joblib")
@@ -400,17 +364,6 @@ class ModelTrainingService:
     ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
         """
         Prepare training data from database records
-        
-        What it does:
-        1. Extract features from JSON
-        2. Extract labels (safety_score or popularity_score)
-        3. Filter out records with missing labels
-        4. Convert to numpy arrays
-        
-        Returns:
-        - X: Feature matrix (n_samples, n_features)
-        - y: Label vector (n_samples,)
-        - feature_names: List of feature names
         """
         features_list = []
         labels = []
@@ -459,9 +412,6 @@ class ModelTrainingService:
         - MAE (Mean Absolute Error): Lower is better
         - R² (R-squared): Higher is better (0-1, 1 = perfect)
         - RMSE (Root Mean Squared Error): Lower is better
-        
-        Returns:
-        - Dictionary with metrics
         """
         metrics = {
             'train_mse': float(mean_squared_error(y_train, y_train_pred)),

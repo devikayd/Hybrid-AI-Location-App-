@@ -97,7 +97,7 @@ class DataCollectionService:
                         duplicate_count += 1
                         continue
                     
-                    # Step 4: Create database model
+                    # Create database model
                     crime_db = CrimeData(
                         latitude=crime_lat,
                         longitude=crime_lon,
@@ -111,7 +111,7 @@ class DataCollectionService:
                         processed=0
                     )
                     
-                    # Step 5: Store in database
+                    # Store in database
                     db.add(crime_db)
                     db.commit()
                     collected_count += 1
@@ -307,7 +307,7 @@ class DataCollectionService:
                         url=article.url,
                         image_url=article.image_url,
                         location_hash=location_hash,
-                        processed=0  # Will be processed for NLP later
+                        processed=0 
                     )
                     
                     db.add(news_db)

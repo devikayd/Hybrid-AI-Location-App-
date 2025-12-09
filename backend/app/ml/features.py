@@ -6,25 +6,6 @@ What this module does:
 - Extracts numerical features for ML models
 - Normalizes and scales features
 - Prepares features for XGBoost training
-
-Technologies used:
-- pandas: Data manipulation and aggregation
-- numpy: Numerical operations
-- scikit-learn: Feature scaling
-- math: Mathematical calculations (Shannon diversity)
-
-Why this is important:
-- ML models need numerical features (not raw data)
-- Features must be normalized for model training
-- Feature engineering directly affects model performance
-- Good features = good predictions
-
-How it works:
-1. Load cleaned data from database
-2. Group data by location
-3. Calculate features (density, ratios, diversity)
-4. Normalize features (0-1 range)
-5. Return feature vectors
 """
 
 import logging
@@ -47,13 +28,6 @@ class FeatureCalculator:
     - Calculate features from cleaned data
     - Extract numerical features for ML models
     - Normalize and scale features
-    
-    How it works:
-    1. Load cleaned data (processed = 1)
-    2. Group by location (lat/lon grid or location_hash)
-    3. Calculate features per location
-    4. Normalize features
-    5. Return feature vectors
     """
     
     # Essential amenities for safety scoring
@@ -87,20 +61,6 @@ class FeatureCalculator:
         - Violent crime ratio (violent crimes / total crimes)
         - Crime category distribution
         - Recent crime trend
-        
-        Parameters:
-        - crime_data: DataFrame with crime records
-        - radius_km: Search radius for density calculation
-        
-        Returns:
-        - Dictionary with crime features
-        
-        Example:
-        >>> calculator = FeatureCalculator()
-        >>> crimes = pd.DataFrame([...])
-        >>> features = calculator.calculate_crime_features(crimes, radius_km=5.0)
-        >>> print(features['crime_density'])
-        0.5
         """
         if crime_data.empty:
             return {
@@ -166,9 +126,6 @@ class FeatureCalculator:
         - POI diversity (Shannon diversity index)
         - Essential amenities ratio
         - Amenity type distribution
-        
-        Returns:
-        - Dictionary with POI features
         """
         if poi_data.empty:
             return {
@@ -230,9 +187,6 @@ class FeatureCalculator:
         - Average sentiment score
         - Positive/negative sentiment ratio
         - News source diversity
-        
-        Returns:
-        - Dictionary with news features
         """
         if news_data.empty:
             return {
@@ -295,11 +249,6 @@ class FeatureCalculator:
         - Free event ratio
         - Event diversity (categories)
         - Event frequency
-        
-        Returns:
-        - Dictionary with event features
-        
-        Note: EventData model may not exist yet, so this uses placeholder logic
         """
         if event_data.empty:
             return {
@@ -350,9 +299,6 @@ class FeatureCalculator:
         - Merges features from all data types
         - Creates complete feature vector for ML models
         - Ensures all features are present (fills missing with 0)
-        
-        Returns:
-        - Complete feature dictionary
         """
         # Combine all features
         combined = {}
@@ -375,13 +321,6 @@ class FeatureCalculator:
         - Scales features to 0-1 range
         - Uses Min-Max normalization
         - Handles missing feature ranges
-        
-        Parameters:
-        - features: Feature dictionary
-        - feature_ranges: Optional min/max ranges for each feature
-        
-        Returns:
-        - Normalized feature dictionary
         """
         normalized = {}
         

@@ -7,26 +7,6 @@ What this service does:
 - Normalizes and scales features
 - Stores features in training_data table
 - Prepares data for XGBoost model training
-
-Technologies used:
-- pandas: Data manipulation and aggregation
-- numpy: Numerical operations
-- scikit-learn: Feature scaling
-- SQLAlchemy: Database operations
-- Feature calculator: Feature calculation functions
-
-Why this is important:
-- ML models need numerical features (not raw data)
-- Feature engineering is critical for model performance
-- Good features = good predictions
-- Enables model training
-
-How it works:
-1. Load cleaned data from database (processed = 1)
-2. Group data by location (lat/lon grid)
-3. Calculate features per location
-4. Normalize features (0-1 range)
-5. Store in training_data table
 """
 
 import logging
@@ -51,18 +31,6 @@ logger = logging.getLogger(__name__)
 class FeatureEngineeringService:
     """
     Feature Engineering Service
-    
-    Purpose:
-    - Extract features from cleaned data
-    - Create training datasets for ML models
-    - Store features in training_data table
-    
-    How it works:
-    1. Load cleaned data (processed = 1)
-    2. Group by location (spatial grid)
-    3. Calculate features per location
-    4. Normalize features
-    5. Store in database
     """
     
     def __init__(self):
@@ -84,30 +52,6 @@ class FeatureEngineeringService:
     ) -> Dict[str, Any]:
         """
         Extract features for a specific location
-        
-        What it does:
-        1. Load cleaned data within radius
-        2. Calculate features (crime, POI, news, events)
-        3. Normalize features
-        4. Store in training_data table
-        
-        Parameters:
-        - lat, lon: Location coordinates
-        - radius_km: Search radius
-        - location_name: Optional location name
-        
-        Returns:
-        - Dictionary with extracted features and metadata
-        
-        Example:
-        >>> service = FeatureEngineeringService()
-        >>> result = await service.extract_features_for_location(
-        ...     lat=Decimal("51.5074"),
-        ...     lon=Decimal("-0.1278"),
-        ...     radius_km=5.0
-        ... )
-        >>> print(result['features']['crime_density'])
-        0.5
         """
         db = None
         try:
@@ -236,19 +180,6 @@ class FeatureEngineeringService:
     ) -> Dict[str, Any]:
         """
         Extract features for multiple locations
-        
-        What it does:
-        - Processes multiple locations
-        - Extracts features for each
-        - Stores in training_data table
-        
-        Parameters:
-        - locations: List of (lat, lon) tuples
-        - radius_km: Search radius
-        - limit: Maximum locations to process
-        
-        Returns:
-        - Dictionary with batch processing statistics
         """
         try:
             logger.info(f"Starting batch feature extraction for {len(locations)} locations")
