@@ -1,5 +1,5 @@
 """
-LLM service for DeepSeek integration via OpenRouter (and optional OpenAI fallback)
+LLM service for DeepSeek integration via OpenRouter
 """
 
 from __future__ import annotations
@@ -40,16 +40,6 @@ class LLMService:
             )
             self._initialized = True
             logger.info("LLM service initialized with OpenRouter (DeepSeek).")
-            return
-
-        if provider == "openai":
-            if not settings.OPENAI_API_KEY:
-                logger.warning("OpenAI API key missing; LLM disabled.")
-                return
-
-            self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
-            self._initialized = True
-            logger.info("LLM service initialized with OpenAI.")
             return
 
         logger.info("LLM provider set to 'none'; LLM integration disabled.")

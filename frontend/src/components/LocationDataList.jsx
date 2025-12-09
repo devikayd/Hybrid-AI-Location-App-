@@ -107,7 +107,7 @@ export default function LocationDataList() {
     setSelectedItem(null);
   };
 
-  // Format time ago for real-time items
+  // Format time ago for past events
   const formatTimeAgo = (hoursAgo) => {
     if (!hoursAgo && hoursAgo !== 0) return null;
     
@@ -129,7 +129,9 @@ export default function LocationDataList() {
     
     if (hoursAhead < 1) {
       const minutes = Math.floor(hoursAhead * 60);
-      return minutes <= 1 ? 'Starting now' : `In ${minutes} min`;
+      // If event is happening now (within 1 hour), return null to show nothing
+      if (minutes <= 1) return null;
+      return `In ${minutes} min`;
     } else if (hoursAhead < 24) {
       const hours = Math.floor(hoursAhead);
       return `In ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
@@ -404,18 +406,13 @@ export default function LocationDataList() {
                     </p>
                   )}
                   <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
-                    {/* Real-time indicator */}
-                    {item.metadata?.is_realtime && (
-                      <span className="px-1.5 py-0.5 rounded bg-red-500 text-white font-semibold text-[10px] animate-pulse">
-                        🔴 LIVE
-                      </span>
-                    )}
-                    {item.metadata?.hours_ago !== undefined && item.metadata.hours_ago !== null && (
+                    {/* Time indicators - no LIVE button */}
+                    {item.metadata?.hours_ago !== undefined && item.metadata.hours_ago !== null && item.metadata.hours_ago > 0 && (
                       <span className="text-red-600 font-medium">
                         {formatTimeAgo(item.metadata.hours_ago)}
                       </span>
                     )}
-                    {item.metadata?.hours_ahead !== undefined && item.metadata.hours_ahead !== null && (
+                    {item.metadata?.hours_ahead !== undefined && item.metadata.hours_ahead !== null && item.metadata.hours_ahead > 0 && formatTimeAhead(item.metadata.hours_ahead) && (
                       <span className="text-blue-600 font-medium">
                         {formatTimeAhead(item.metadata.hours_ahead)}
                       </span>
@@ -474,18 +471,13 @@ export default function LocationDataList() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
-                    {/* Real-time indicator in modal */}
-                    {selectedItem.metadata?.is_realtime && (
-                      <span className="px-2 py-0.5 rounded bg-red-500 text-white font-semibold animate-pulse">
-                        🔴 LIVE
-                      </span>
-                    )}
-                    {selectedItem.metadata?.hours_ago !== undefined && selectedItem.metadata.hours_ago !== null && (
+                    {/* Time indicators in modal - no LIVE button */}
+                    {selectedItem.metadata?.hours_ago !== undefined && selectedItem.metadata.hours_ago !== null && selectedItem.metadata.hours_ago > 0 && (
                       <span className="text-red-600 font-medium">
                         {formatTimeAgo(selectedItem.metadata.hours_ago)}
                       </span>
                     )}
-                    {selectedItem.metadata?.hours_ahead !== undefined && selectedItem.metadata.hours_ahead !== null && (
+                    {selectedItem.metadata?.hours_ahead !== undefined && selectedItem.metadata.hours_ahead !== null && selectedItem.metadata.hours_ahead > 0 && formatTimeAhead(selectedItem.metadata.hours_ahead) && (
                       <span className="text-blue-600 font-medium">
                         {formatTimeAhead(selectedItem.metadata.hours_ahead)}
                       </span>
@@ -538,22 +530,18 @@ export default function LocationDataList() {
                     <p className="text-sm text-gray-900">📍 {Number(selectedItem.distance_km).toFixed(1)} km</p>
                   </div>
                 )}
-                {/* Real-time status */}
-                {(selectedItem.metadata?.is_realtime || selectedItem.metadata?.hours_ago !== undefined || selectedItem.metadata?.hours_ahead !== undefined) && (
+                {/* Time status */}
+                {((selectedItem.metadata?.hours_ago !== undefined && selectedItem.metadata.hours_ago !== null && selectedItem.metadata.hours_ago > 0) || 
+                  (selectedItem.metadata?.hours_ahead !== undefined && selectedItem.metadata.hours_ahead !== null && selectedItem.metadata.hours_ahead > 0 && formatTimeAhead(selectedItem.metadata.hours_ahead))) && (
                   <div>
                     <h3 className="text-xs font-semibold text-gray-500 mb-1">Status</h3>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {selectedItem.metadata?.is_realtime && (
-                        <span className="px-2 py-1 rounded bg-red-500 text-white font-semibold text-xs animate-pulse">
-                          🔴 LIVE
-                        </span>
-                      )}
-                      {selectedItem.metadata?.hours_ago !== undefined && selectedItem.metadata.hours_ago !== null && (
+                      {selectedItem.metadata?.hours_ago !== undefined && selectedItem.metadata.hours_ago !== null && selectedItem.metadata.hours_ago > 0 && (
                         <span className="text-sm text-red-600 font-medium">
                           {formatTimeAgo(selectedItem.metadata.hours_ago)}
                         </span>
                       )}
-                      {selectedItem.metadata?.hours_ahead !== undefined && selectedItem.metadata.hours_ahead !== null && (
+                      {selectedItem.metadata?.hours_ahead !== undefined && selectedItem.metadata.hours_ahead !== null && selectedItem.metadata.hours_ahead > 0 && formatTimeAhead(selectedItem.metadata.hours_ahead) && (
                         <span className="text-sm text-blue-600 font-medium">
                           {formatTimeAhead(selectedItem.metadata.hours_ahead)}
                         </span>

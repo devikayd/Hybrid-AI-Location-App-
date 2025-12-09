@@ -148,46 +148,46 @@ class POIsService:
         for instance_url in overpass_instances:
             try:
                 # Build optimized Overpass QL query
-        query = self._build_overpass_query(lat, lon, radius_m, types)
-        
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                            f"{instance_url}/interpreter",
-                    data=query,
-                    headers={"Content-Type": "text/plain"}
-                )
-                response.raise_for_status()
+                query = self._build_overpass_query(lat, lon, radius_m, types)
                 
-                data = response.json()
-                elements = data.get("elements", [])
-                
-                # Convert to our schema and limit results
-                pois = []
-                for element in elements[:limit]:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
                     try:
-                        poi = self._convert_element_to_poi(element, lat, lon)
-                        if poi:
-                            pois.append(poi)
-                    except Exception as e:
-                        logger.warning(f"Invalid POI element: {e}")
-                        continue
-                
+                        response = await client.post(
+                            f"{instance_url}/interpreter",
+                            data=query,
+                            headers={"Content-Type": "text/plain"}
+                        )
+                        response.raise_for_status()
+                        
+                        data = response.json()
+                        elements = data.get("elements", [])
+                        
+                        # Convert to our schema and limit results
+                        pois = []
+                        for element in elements[:limit]:
+                            try:
+                                poi = self._convert_element_to_poi(element, lat, lon)
+                                if poi:
+                                    pois.append(poi)
+                            except Exception as e:
+                                logger.warning(f"Invalid POI element: {e}")
+                                continue
+                        
                         logger.info(f"Fetched {len(pois)} POIs from {instance_url} for location {lat}, {lon}")
-                return pois
-                
-            except httpx.TimeoutException:
+                        return pois
+                        
+                    except httpx.TimeoutException:
                         logger.warning(f"Timeout from {instance_url}, trying next instance...")
                         last_error = ExternalAPIException("Overpass", f"Request timeout from {instance_url}")
                         continue
-            except httpx.HTTPStatusError as e:
+                    except httpx.HTTPStatusError as e:
                         if e.response.status_code == 504:
                             logger.warning(f"504 Gateway Timeout from {instance_url}, trying next instance...")
                             last_error = ExternalAPIException("Overpass", f"HTTP 504 Gateway Timeout from {instance_url}")
                             continue
                         else:
-                raise ExternalAPIException("Overpass", f"HTTP {e.response.status_code}: {e.response.text}")
-            except httpx.RequestError as e:
+                            raise ExternalAPIException("Overpass", f"HTTP {e.response.status_code}: {e.response.text}")
+                    except httpx.RequestError as e:
                         logger.warning(f"Request error from {instance_url}: {e}, trying next instance...")
                         last_error = ExternalAPIException("Overpass", f"Request error: {str(e)}")
                         continue

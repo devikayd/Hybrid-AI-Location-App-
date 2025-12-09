@@ -64,10 +64,6 @@ async def detailed_status_check() -> Dict[str, Any]:
     llm_configured = False
     if llm_provider == "openrouter":
         llm_configured = bool(settings.OPENROUTER_API_KEY)
-    elif llm_provider == "openai":
-        llm_configured = bool(settings.OPENAI_API_KEY)
-    elif llm_provider == "anthropic":
-        llm_configured = bool(settings.ANTHROPIC_API_KEY)
 
     api_configs = {
         "eventbrite": settings.EVENTBRITE_TOKEN is not None,

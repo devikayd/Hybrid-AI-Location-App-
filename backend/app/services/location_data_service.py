@@ -26,10 +26,16 @@ class LocationDataService:
     
     def __init__(self):
         self.cache_ttl = 1800  # 30 minutes cache
-        # Real-time filtering: show only very recent incidents
-        self.recent_hours = 24  # Show items from last 24 hours (real-time)
-        # For events: show upcoming events within next 24 hours
-        self.event_future_hours = 24  # Show events happening in next 24 hours
+        # Real-time filtering: configurable via settings
+        # Events
+        self.event_recent_hours = settings.EVENT_RECENT_HOURS  # Show events from last N hours
+        self.event_future_hours = settings.EVENT_FUTURE_HOURS  # Show events in next N hours
+        # Crimes: UK Police API provides monthly aggregated data
+        # For near real-time, use 1-7 days (shows only most recent crimes)
+        self.crime_recent_days = settings.CRIME_RECENT_DAYS  # Show crimes from last N days
+        # News: NewsAPI can provide very recent articles
+        # For near real-time, use 1-24 hours (shows only latest news)
+        self.news_recent_hours = settings.NEWS_RECENT_HOURS  # Show news from last N hours
     
     async def get_location_data(
         self,
@@ -58,10 +64,13 @@ class LocationDataService:
             # Collect all data concurrently
             events, pois, news, crimes = await self._collect_all_data(lat, lon, radius_km)
             
-            # Filter to show only real-time/recent incidents (within last 24 hours)
-            events = self._filter_realtime_items(events, "event")
-            news = self._filter_realtime_items(news, "news")
-            crimes = self._filter_realtime_items(crimes, "crime")
+            # Filter to show only real-time/recent incidents
+            # Events: Use cascading fallback (24h past/7d future -> 7d past/14d future -> 14d past/30d future)
+            events = self._filter_events_with_fallback(events)
+            # News: Use cascading fallback (24 hours -> 7 days -> 14 days)
+            news = self._filter_news_with_fallback(news)
+            # Crimes: Use cascading fallback (7 days -> 30 days -> 60 days)
+            crimes = self._filter_crimes_with_fallback(crimes)
             # POIs don't have dates, so keep all of them (they're static locations)
             
             # Sort by recency (most recent first)
@@ -272,13 +281,15 @@ class LocationDataService:
     async def _collect_news(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
         """Collect news items (recent news)"""
         try:
-            # Get more news to filter from (we'll filter to recent ones)
+            # Get more news to filter from (we'll filter to last 7 days)
             news_response = await news_service.get_news(
                 lat=lat,
                 lon=lon,
                 radius_km=radius_km,
                 limit=100  # Get more to filter from
             )
+            
+            logger.info(f"Collected {len(news_response.articles)} news articles from API for location {lat}, {lon}")
             
             items = []
             for i, article in enumerate(news_response.articles):
@@ -307,23 +318,206 @@ class LocationDataService:
                     }
                 ))
             
+            logger.info(f"Created {len(items)} news LocationItems from {len(news_response.articles)} articles")
             return items
         except Exception as e:
-            logger.error(f"Error collecting news: {e}")
+            logger.error(f"Error collecting news for {lat}, {lon}: {e}", exc_info=True)
             return []
+    
+    def _filter_events_with_fallback(self, items: List[LocationItem]) -> List[LocationItem]:
+        """
+        Filter events with cascading fallback for FUTURE events only:
+        - Past events: Fixed at last 24 hours (no cascading)
+        - Future events: Cascading fallback (7 days -> 14 days -> 30 days)
+        
+        This ensures users see recent past events and upcoming events, expanding future window if needed.
+        """
+        if not items:
+            return []
+        
+        # Past window is fixed at 24 hours, only cascade future window
+        past_hours = 24  # Fixed: only show events from last 24 hours
+        future_windows = [168, 336, 720]  # 7 days, 14 days, 30 days future
+        
+        for future_hours in future_windows:
+            filtered = self._filter_events_by_window(items, past_hours, future_hours)
+            if len(filtered) > 0:
+                logger.info(f"Event filtering: Found {len(filtered)} events using {past_hours}h past / {future_hours}h future window (from {len(items)} total)")
+                return filtered
+            else:
+                logger.debug(f"Event filtering: No events found in {past_hours}h past / {future_hours}h future window, trying next future window...")
+        
+        # If all windows return 0, log warning and return empty
+        logger.warning(f"Event filtering: No events found in {past_hours}h past / up to {future_windows[-1]}h future from {len(items)} total events")
+        return []
+    
+    def _filter_events_by_window(self, items: List[LocationItem], past_hours: int, future_hours: int) -> List[LocationItem]:
+        """Filter events to show only those within the specified past/future window"""
+        if not items:
+            return []
+        
+        now = datetime.now(timezone.utc)
+        past_cutoff = now - timedelta(hours=past_hours)
+        future_cutoff = now + timedelta(hours=future_hours)
+        filtered = []
+        
+        for item in items:
+            if not item.date:
+                continue
+            
+            try:
+                item_date = self._parse_date(item.date)
+                if not item_date:
+                    continue
+                
+                if past_cutoff <= item_date <= future_cutoff:
+                    hours_ago = (now - item_date).total_seconds() / 3600 if item_date < now else None
+                    hours_ahead = (item_date - now).total_seconds() / 3600 if item_date > now else None
+                    
+                    if not item.metadata:
+                        item.metadata = {}
+                    item.metadata["hours_ago"] = hours_ago
+                    item.metadata["hours_ahead"] = hours_ahead
+                    filtered.append(item)
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Could not parse event date: {item.date} - {e}")
+                continue
+        
+        return filtered
+    
+    def _filter_crimes_with_fallback(self, items: List[LocationItem]) -> List[LocationItem]:
+        """
+        Filter crimes with cascading fallback:
+        1. Try last 7 days (most recent)
+        2. If no results, try last 30 days
+        3. If still no results, try last 60 days (2 months)
+        
+        This ensures users always see crime data if available, even if it's not super recent.
+        UK Police API provides monthly aggregated data (typically 1-2 months old), so this
+        fallback ensures we show available data.
+        """
+        if not items:
+            return []
+        
+        # Try progressively wider time windows
+        fallback_windows = [7, 30, 60]  # days
+        
+        for days in fallback_windows:
+            filtered = self._filter_crimes_by_days(items, days)
+            if len(filtered) > 0:
+                logger.info(f"Crime filtering: Found {len(filtered)} crimes using {days}-day window (from {len(items)} total)")
+                return filtered
+            else:
+                logger.debug(f"Crime filtering: No crimes found in last {days} days, trying next window...")
+        
+        # If all windows return 0, log warning and return empty
+        logger.warning(f"Crime filtering: No crimes found in any time window (7, 30, or 60 days) from {len(items)} total crimes")
+        return []
+    
+    def _filter_news_with_fallback(self, items: List[LocationItem]) -> List[LocationItem]:
+        """
+        Filter news with cascading fallback:
+        1. Try last 24 hours (most recent)
+        2. If no results, try last 7 days (168 hours)
+        3. If still no results, try last 14 days (336 hours)
+        
+        This ensures users always see news data if available.
+        """
+        if not items:
+            return []
+        
+        # Try progressively wider time windows (in hours)
+        fallback_windows = [24, 168, 336]  # hours (1 day, 7 days, 14 days)
+        
+        for hours in fallback_windows:
+            filtered = self._filter_news_by_hours(items, hours)
+            if len(filtered) > 0:
+                logger.info(f"News filtering: Found {len(filtered)} news articles using {hours}-hour window ({hours//24} days, from {len(items)} total)")
+                return filtered
+            else:
+                logger.debug(f"News filtering: No news found in last {hours} hours ({hours//24} days), trying next window...")
+        
+        # If all windows return 0, log warning and return empty
+        logger.warning(f"News filtering: No news found in any time window (24h, 7d, or 14d) from {len(items)} total articles")
+        return []
+    
+    def _filter_news_by_hours(self, items: List[LocationItem], hours: int) -> List[LocationItem]:
+        """Filter news to show only those from last N hours"""
+        if not items:
+            return []
+        
+        now = datetime.now(timezone.utc)
+        news_past_cutoff = now - timedelta(hours=hours)
+        filtered = []
+        
+        for item in items:
+            if not item.date:
+                continue
+            
+            try:
+                item_date = self._parse_date(item.date)
+                if not item_date:
+                    continue
+                
+                if news_past_cutoff <= item_date <= now:
+                    hours_ago = (now - item_date).total_seconds() / 3600
+                    
+                    if not item.metadata:
+                        item.metadata = {}
+                    item.metadata["hours_ago"] = hours_ago
+                    filtered.append(item)
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Could not parse news date: {item.date} - {e}")
+                continue
+        
+        return filtered
+    
+    def _filter_crimes_by_days(self, items: List[LocationItem], days: int) -> List[LocationItem]:
+        """Filter crimes to show only those from last N days"""
+        if not items:
+            return []
+        
+        now = datetime.now(timezone.utc)
+        crime_past_cutoff = now - timedelta(days=days)
+        filtered = []
+        
+        for item in items:
+            if not item.date:
+                continue
+            
+            try:
+                item_date = self._parse_date(item.date)
+                if not item_date:
+                    continue
+                
+                if crime_past_cutoff <= item_date <= now:
+                    days_ago = (now - item_date).total_seconds() / 86400
+                    
+                    if not item.metadata:
+                        item.metadata = {}
+                    item.metadata["days_ago"] = days_ago
+                    item.metadata["hours_ago"] = days_ago * 24
+                    filtered.append(item)
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Could not parse crime date: {item.date} - {e}")
+                continue
+        
+        return filtered
     
     def _filter_realtime_items(self, items: List[LocationItem], item_type: str) -> List[LocationItem]:
         """
         Filter items to show only real-time/recent incidents
-        For events: show upcoming events (within next 24 hours) or very recent (last 6 hours)
-        For news: filter by published date (last 24 hours)
-        For crimes: filter by crime date (last 24 hours)
+        For events: show upcoming events (within configured hours) or recent past (last N hours)
+        For news: filter by published date (last N hours - configurable)
+        For crimes: filter by crime date (last N days - configurable)
+        
+        Note: UK Police API provides monthly aggregated data, so "real-time" for crimes
+        is limited to the most recent month. For near real-time, use 1-7 days.
         """
         if not items:
             return []
         
         now = datetime.now(timezone.utc)
-        past_cutoff = now - timedelta(hours=self.recent_hours)
         future_cutoff = now + timedelta(hours=self.event_future_hours)
         filtered = []
         
@@ -337,43 +531,118 @@ class LocationDataService:
                 item_date = self._parse_date(item.date)
                 
                 if not item_date:
+                    logger.debug(f"Could not parse date for {item_type} item {item.id}: {item.date}")
                     continue
                 
-                # For events: show upcoming (next 24 hours) or very recent past (last 6 hours)
+                # For events: show upcoming (next N hours) or recent past (last N hours)
                 if item_type == "event":
-                    # Show events happening soon (next 24h) or just happened (last 6h)
-                    event_past_cutoff = now - timedelta(hours=6)  # Very recent past events
+                    event_past_cutoff = now - timedelta(hours=self.event_recent_hours)
+                    hours_ago = (now - item_date).total_seconds() / 3600 if item_date < now else None
+                    hours_ahead = (item_date - now).total_seconds() / 3600 if item_date > now else None
+                    
+                    # Debug logging for first few items
+                    if len(filtered) < 3:
+                        logger.debug(f"Event filtering: date={item.date}, parsed={item_date}, hours_ago={hours_ago}, hours_ahead={hours_ahead}, past_cutoff={event_past_cutoff}, future_cutoff={future_cutoff}, within_range={event_past_cutoff <= item_date <= future_cutoff}")
+                    
                     if (event_past_cutoff <= item_date <= future_cutoff):
                         # Add recency metadata
-                        hours_ago = (now - item_date).total_seconds() / 3600 if item_date < now else None
-                        hours_ahead = (item_date - now).total_seconds() / 3600 if item_date > now else None
-                        is_realtime = hours_ago is not None and hours_ago <= 6
-                        
                         if not item.metadata:
                             item.metadata = {}
                         item.metadata["hours_ago"] = hours_ago
                         item.metadata["hours_ahead"] = hours_ahead
-                        item.metadata["is_realtime"] = is_realtime
                         filtered.append(item)
-                # For news and crimes: show only very recent (last 24 hours)
-                else:
-                    if past_cutoff <= item_date <= now:
+                    elif len(filtered) < 3:
+                        logger.debug(f"Event filtered out: date={item.date}, hours_ago={hours_ago}, hours_ahead={hours_ahead}, outside range [{event_past_cutoff}, {future_cutoff}]")
+                # For crimes: show crimes from last N days (configurable)
+                # UK Police API provides monthly aggregated data
+                # The date represents the month, so we compare month-to-month
+                elif item_type == "crime":
+                    crime_past_cutoff = now - timedelta(days=self.crime_recent_days)
+                    
+                    # For monthly aggregated data, if the crime month is within the cutoff period, include it
+                    # Since crimes are aggregated by month, we check if the month falls within our window
+                    if crime_past_cutoff <= item_date <= now:
                         # Add recency metadata
-                        hours_ago = (now - item_date).total_seconds() / 3600
-                        is_realtime = hours_ago <= 6  # Very recent (last 6 hours)
+                        days_ago = (now - item_date).total_seconds() / 86400
+                        
+                        # Debug logging for first few items
+                        if len(filtered) < 3:
+                            logger.debug(f"Crime filtering: date={item.date}, parsed={item_date}, days_ago={days_ago:.1f}, cutoff_days={self.crime_recent_days}, within_range={crime_past_cutoff <= item_date <= now}")
                         
                         if not item.metadata:
                             item.metadata = {}
-                        item.metadata["hours_ago"] = hours_ago
-                        item.metadata["is_realtime"] = is_realtime
+                        item.metadata["days_ago"] = days_ago
+                        item.metadata["hours_ago"] = days_ago * 24
                         filtered.append(item)
+                    elif len(filtered) < 3:
+                        days_ago = (now - item_date).total_seconds() / 86400
+                        logger.debug(f"Crime filtered out: {days_ago:.1f} days ago (cutoff: {self.crime_recent_days} days), date={item.date}")
+                # For news: show news from last N hours (configurable)
+                # NewsAPI can provide very recent articles, so hours-based filtering works well
+                elif item_type == "news":
+                    news_past_cutoff = now - timedelta(hours=self.news_recent_hours)
+                    hours_ago = (now - item_date).total_seconds() / 3600
+                    
+                    # Debug logging for first few items
+                    if len(filtered) < 3:
+                        logger.debug(f"News item date check: date={item.date}, parsed={item_date}, hours_ago={hours_ago:.1f}, cutoff={news_past_cutoff}, within_range={news_past_cutoff <= item_date <= now}")
+                    
+                    if news_past_cutoff <= item_date <= now:
+                        # Add recency metadata
+                        if not item.metadata:
+                            item.metadata = {}
+                        item.metadata["hours_ago"] = hours_ago
+                        filtered.append(item)
+                    elif len(filtered) < 3:
+                        logger.debug(f"News item filtered out: {hours_ago:.1f} hours ago (cutoff: {self.news_recent_hours} hours)")
                         
             except (ValueError, TypeError) as e:
-                logger.debug(f"Could not parse date for {item_type} item {item.id}: {item.date} - {e}")
+                logger.warning(f"Could not parse date for {item_type} item {item.id}: {item.date} - {e}")
                 # If date parsing fails, skip the item
                 continue
         
-        logger.info(f"Filtered {item_type}: {len(items)} -> {len(filtered)} real-time items (last {self.recent_hours} hours)")
+        if item_type == "crime":
+            if len(filtered) == 0 and len(items) > 0:
+                # Log sample dates and parsed dates if all filtered out
+                sample_dates = []
+                sample_parsed = []
+                for item in items[:5]:
+                    if item.date:
+                        sample_dates.append(item.date)
+                        parsed = self._parse_date(item.date)
+                        if parsed:
+                            days_ago = (datetime.now(timezone.utc) - parsed).total_seconds() / 86400
+                            sample_parsed.append(f"{item.date} -> {parsed.date()} ({days_ago:.1f} days ago)")
+                        else:
+                            sample_parsed.append(f"{item.date} -> FAILED TO PARSE")
+                logger.warning(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (last {self.crime_recent_days} days). Sample dates: {sample_dates[:3]}. Parsed: {sample_parsed[:3]}")
+            else:
+                logger.info(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (last {self.crime_recent_days} days)")
+        elif item_type == "news":
+            if len(filtered) == 0 and len(items) > 0:
+                # Log sample dates if all filtered out
+                sample_dates = [item.date for item in items[:3] if item.date]
+                logger.warning(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (last {self.news_recent_hours} hours). Sample dates: {sample_dates}")
+            else:
+                logger.info(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (last {self.news_recent_hours} hours)")
+        elif item_type == "event":
+            if len(filtered) == 0 and len(items) > 0:
+                # Log sample dates if all filtered out
+                sample_dates = []
+                sample_parsed = []
+                for item in items[:5]:
+                    if item.date:
+                        sample_dates.append(item.date)
+                        parsed = self._parse_date(item.date)
+                        if parsed:
+                            hours_ago = (datetime.now(timezone.utc) - parsed).total_seconds() / 3600 if parsed < datetime.now(timezone.utc) else None
+                            hours_ahead = (parsed - datetime.now(timezone.utc)).total_seconds() / 3600 if parsed > datetime.now(timezone.utc) else None
+                            sample_parsed.append(f"{item.date} -> {parsed} (ago: {hours_ago:.1f}h, ahead: {hours_ahead:.1f}h)" if hours_ago else f"{item.date} -> {parsed} (ahead: {hours_ahead:.1f}h)")
+                        else:
+                            sample_parsed.append(f"{item.date} -> FAILED TO PARSE")
+                logger.warning(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (past {self.event_recent_hours}h, future {self.event_future_hours}h). Sample dates: {sample_dates[:3]}. Parsed: {sample_parsed[:3]}")
+            else:
+                logger.info(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (past {self.event_recent_hours}h, future {self.event_future_hours}h)")
         return filtered
     
     def _sort_by_recency(self, items: List[LocationItem]) -> List[LocationItem]:
@@ -409,13 +678,15 @@ class LocationDataService:
         if not date_str:
             return None
         
-        # Common ISO 8601 formats
+        # Common ISO 8601 formats (including UK Police API formats)
         formats = [
-            "%Y-%m-%dT%H:%M:%S%z",  # 2024-01-15T10:30:00+00:00
-            "%Y-%m-%dT%H:%M:%SZ",    # 2024-01-15T10:30:00Z
-            "%Y-%m-%dT%H:%M:%S",      # 2024-01-15T10:30:00
-            "%Y-%m-%d %H:%M:%S",     # 2024-01-15 10:30:00
-            "%Y-%m-%d",              # 2024-01-15
+            "%Y-%m-%dT%H:%M:%S%z",      # 2024-01-15T10:30:00+00:00
+            "%Y-%m-%dT%H:%M:%S.%f%z",   # 2024-01-15T10:30:00.123456+00:00
+            "%Y-%m-%dT%H:%M:%SZ",       # 2024-01-15T10:30:00Z
+            "%Y-%m-%dT%H:%M:%S.%fZ",    # 2024-01-15T10:30:00.123456Z
+            "%Y-%m-%dT%H:%M:%S",        # 2024-01-15T10:30:00
+            "%Y-%m-%d %H:%M:%S",        # 2024-01-15 10:30:00
+            "%Y-%m-%d",                 # 2024-01-15
         ]
         
         for fmt in formats:
@@ -428,34 +699,62 @@ class LocationDataService:
             except ValueError:
                 continue
         
-        # Try parsing as ISO format with dateutil (if available)
+        # Try parsing as ISO format with dateutil (if available) - handles more edge cases
         try:
             from dateutil import parser
             parsed = parser.parse(date_str)
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=timezone.utc)
             return parsed
-        except (ImportError, ValueError, TypeError):
+        except (ImportError, ValueError, TypeError) as e:
+            logger.debug(f"dateutil parser failed for date '{date_str}': {e}")
             pass
         
+        # Last attempt: try to parse as YYYY-MM (month format from UK Police API)
+        try:
+            if len(date_str) == 7 and date_str[4] == '-':  # YYYY-MM format
+                year, month = map(int, date_str.split('-'))
+                parsed = datetime(year, month, 1, tzinfo=timezone.utc)
+                return parsed
+        except (ValueError, TypeError):
+            pass
+        
+        logger.warning(f"Could not parse date string: '{date_str}'")
         return None
     
     async def _collect_crimes(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
         """Collect crime items"""
         try:
-            # Get crimes from last 2 months but we'll filter to last 2 days
+            # Get crimes from last 3 months (we'll filter to configured days)
+            # UK Police API provides monthly aggregated data (typically 1-2 months old)
+            # Request 3 months to ensure we have enough data to filter from
             crime_response = await crime_service.get_crimes(
                 lat=lat,
                 lon=lon,
-                months=2,  # Reduced from 6 to 2 months since we filter to 2 days anyway
-                limit=100  # Get more to filter from
+                months=3,  # Get 3 months of data (UK Police data is typically 1-2 months old)
+                limit=200  # Get more to filter from
             )
+            
+            logger.info(f"Collected {len(crime_response.crimes)} crimes from API for location {lat}, {lon}")
             
             items = []
             for crime in crime_response.crimes:
                 if crime.location and crime.location.latitude and crime.location.longitude:
                     # Generate URL to UK Police website for this location
                     crime_url = f"https://www.police.uk/pu/your-area/?q={crime.location.latitude},{crime.location.longitude}"
+                    
+                    # UK Police API provides monthly aggregated data
+                    # Use the 'month' field (YYYY-MM) to create a proper date for filtering
+                    # Set date to first day of the month for consistent filtering
+                    crime_date = crime.date
+                    if crime.month:
+                        try:
+                            # Parse month (YYYY-MM) and set to first day of month
+                            year, month = map(int, crime.month.split('-'))
+                            crime_date = datetime(year, month, 1, tzinfo=timezone.utc).isoformat()
+                        except (ValueError, AttributeError):
+                            # Fallback to original date if month parsing fails
+                            pass
                     
                     items.append(LocationItem(
                         id=f"crime_{crime.id}",
@@ -467,18 +766,20 @@ class LocationDataService:
                         category=crime.category,
                         subtype=crime.category,
                         distance_km=None,
-                        date=crime.date,
+                        date=crime_date,
                         url=crime_url,  # Add URL for crime location on UK Police website
                         metadata={
                             "crime_type": crime.category,
                             "month": crime.month if hasattr(crime, 'month') else None,
-                            "persistent_id": crime.persistent_id if hasattr(crime, 'persistent_id') else None
+                            "persistent_id": crime.persistent_id if hasattr(crime, 'persistent_id') else None,
+                            "original_date": crime.date  # Keep original for reference
                         }
                     ))
             
+            logger.info(f"Created {len(items)} crime LocationItems from {len(crime_response.crimes)} crimes")
             return items
         except Exception as e:
-            logger.error(f"Error collecting crimes: {e}")
+            logger.error(f"Error collecting crimes for {lat}, {lon}: {e}", exc_info=True)
             return []
     
     async def add_user_interaction_status(

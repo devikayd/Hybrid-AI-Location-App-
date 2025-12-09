@@ -1,30 +1,18 @@
-"""
-Application configuration management
-"""
-
-import os
-from typing import List, Optional
-from pydantic import validator
+from typing import Optional, List
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    """Application settings"""
     
-    # Application
+    # Adding basic settings for the app
     APP_NAME: str = "Hybrid AI Location App"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     
-    # Security
-    SECRET_KEY: str = "your-secret-key-change-in-production"
-    ALLOWED_HOSTS: List[str] = ["*"]
-    # temporary mychanges
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
-    # http://127.0.0.1:5173,http://127.0.0.1:3000"
     
     # Database
     DATABASE_URL: str = "sqlite:///./data/dev.db"
@@ -36,15 +24,17 @@ class Settings(BaseSettings):
     CONTACT_EMAIL: str = "dev@example.com"
     EVENTBRITE_TOKEN: Optional[str] = None
     NEWSAPI_KEY: Optional[str] = None
-    # Ticketmaster (alternative events provider)
     TICKETMASTER_API_KEY: Optional[str] = None
     
     # AI/LLM
-    LLM_PROVIDER: str = "none"  # openrouter, openai, anthropic, none
-    OPENROUTER_API_KEY: Optional[str] = None
+    LLM_PROVIDER: str = "none"
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+    OPENROUTER_API_KEY: Optional[str] = None
     LLM_MODEL: str = "deepseek/deepseek-chat:free"
+    
+    # Security
+    SECRET_KEY: str = "your-secret-key-here-change-in-production"
     
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
@@ -57,12 +47,28 @@ class Settings(BaseSettings):
     NEWS_CACHE_TTL: int = 900        # 15 minutes
     POI_CACHE_TTL: int = 86400       # 1 day
     
+    # Real-time Data Filtering (for location data panel)
+    # NOTE: The system now uses CASCADING FALLBACK for crimes and news:
+    # - Crimes: Tries 7 days → 30 days → 60 days (shows first available)
+    # - News: Tries 24 hours → 7 days → 14 days (shows first available)
+    # These settings are kept for backward compatibility but cascading fallback takes precedence
+    
+    # Crimes: UK Police API provides monthly aggregated data (typically 1-2 months old)
+    # Cascading fallback ensures data is shown even if older than expected
+    CRIME_RECENT_DAYS: int = 90  # Legacy setting (cascading fallback: 7→30→60 days)
+    # News: NewsAPI can provide very recent articles
+    # Cascading fallback ensures data is shown even if older than expected
+    NEWS_RECENT_HOURS: int = 168  # Legacy setting (cascading fallback: 24h→7d→14d)
+    # Events: Show upcoming events and recent past
+    EVENT_RECENT_HOURS: int = 24  # Show events from last N hours
+    EVENT_FUTURE_HOURS: int = 168  # Show events in next N hours (7 days)
+    
     # External API Timeouts (seconds)
     NOMINATIM_TIMEOUT: int = 10
     POLICE_API_TIMEOUT: int = 15
-    EVENTBRITE_TIMEOUT: int = 15
     TICKETMASTER_TIMEOUT: int = 15
     NEWSAPI_TIMEOUT: int = 15
+    EVENTBRITE_TIMEOUT: int = 15
     OVERPASS_TIMEOUT: int = 30  # Increased to 30s to handle slower responses
     
     # External API URLs
@@ -78,13 +84,7 @@ class Settings(BaseSettings):
         """Get CORS origins as a list"""
         if isinstance(self.CORS_ORIGINS, str):
             return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
-        return self.CORS_ORIGINS
-    
-    @validator("ALLOWED_HOSTS", pre=True)
-    def parse_allowed_hosts(cls, v):
-        if isinstance(v, str):
-            return [host.strip() for host in v.split(",")]
-        return v
+        return self.CORS_ORIGINS if isinstance(self.CORS_ORIGINS, list) else []
     
     class Config:
         env_file = ".env"

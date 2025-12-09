@@ -124,14 +124,20 @@ class CrimeService:
         """Fetch crime data from UK Police API"""
         
         # Generate date range
+        # UK Police API requires YYYY-MM format and only provides data for past months
+        # Get the most recent available month (typically 1-2 months ago)
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=months * 30)
+        # UK Police API typically has data up to 1-2 months ago
+        # Request the most recent available month
+        target_month = end_date - timedelta(days=30)  # Go back 1 month to get available data
         
         params = {
             "lat": str(lat),
             "lng": str(lon),
-            "date": f"{start_date.strftime('%Y-%m')}"
+            "date": f"{target_month.strftime('%Y-%m')}"
         }
+        
+        logger.debug(f"Requesting crimes for date: {params['date']} (current date: {end_date.strftime('%Y-%m-%d')})")
         
         if category:
             params["category"] = category

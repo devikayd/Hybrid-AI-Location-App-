@@ -19,7 +19,7 @@ export default function SidePanel() {
   const recent = useMapStore((s) => s.recentSearches);
   const { center } = useMapStore();
   const { data: summary } = useSummary();
-  const { data: scores } = useScores();
+  const { data: scores, error: scoresError, isLoading: scoresLoading } = useScores();
   
   // Use shared location data hook (prevents duplicate API calls)
   const { data: locationData } = useLocationData();
@@ -34,6 +34,17 @@ export default function SidePanel() {
   const eventsCount = events.length;
   const newsCount = news.length;
   const poisCount = pois.length;
+
+  // Debug logging (remove in production)
+  if (scoresError) {
+    console.error('Scores API Error:', scoresError);
+  }
+  if (scoresLoading) {
+    console.log('Scores loading...');
+  }
+  if (scores) {
+    console.log('Scores data:', scores);
+  }
 
   const safety = scores?.safety_score ?? null;
   const popularity = scores?.popularity_score ?? null;
