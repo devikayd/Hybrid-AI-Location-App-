@@ -1,15 +1,5 @@
 """
 Data Collection API endpoints
-
-Purpose:
-- Provides API endpoints for triggering data collection
-- Supports both single location and batch collection
-- Returns collection statistics
-
-Technology:
-- FastAPI: REST API framework
-- Pydantic: Request/response validation
-- Async/await: Non-blocking data collection
 """
 
 from fastapi import APIRouter, HTTPException, Query

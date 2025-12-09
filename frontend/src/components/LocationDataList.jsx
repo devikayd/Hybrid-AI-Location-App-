@@ -342,11 +342,7 @@ export default function LocationDataList() {
         <h3 className="text-sm font-medium mb-2">Location Data</h3>
         <div className="text-sm text-gray-500 mb-2">No data available for this location</div>
         <div className="text-xs text-gray-400 space-y-1">
-          <div>Events: {counts.events}</div>
-          <div>POIs: {counts.pois}</div>
-          <div>News: {counts.news}</div>
-          <div>Crimes: {counts.crimes}</div>
-          <div>Recommendations: {counts.recommendations}</div>
+          <p> Try searching a different location</p>
         </div>
       </div>
     );
@@ -357,6 +353,18 @@ export default function LocationDataList() {
       
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-1 mb-3">
+           {counts.recommendations > 0 && (
+          <button
+            onClick={() => setFilterType('recommendations')}
+            className={`text-xs px-2 py-1 rounded transition-colors ${
+              filterType === 'recommendations' 
+                ? 'bg-purple-600 text-white' 
+                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+            }`}
+          >
+            ⭐ Recommendations ({counts.recommendations})
+          </button>
+        )}
         <button
           onClick={() => setFilterType('all')}
           className={`text-xs px-2 py-1 rounded transition-colors ${
@@ -413,18 +421,6 @@ export default function LocationDataList() {
             }`}
           >
             ⚠️ Crimes ({counts.crimes})
-          </button>
-        )}
-        {counts.recommendations > 0 && (
-          <button
-            onClick={() => setFilterType('recommendations')}
-            className={`text-xs px-2 py-1 rounded transition-colors ${
-              filterType === 'recommendations' 
-                ? 'bg-purple-600 text-white' 
-                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-            }`}
-          >
-            ⭐ Recommendations ({counts.recommendations})
           </button>
         )}
       </div>

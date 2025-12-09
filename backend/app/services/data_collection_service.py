@@ -54,7 +54,7 @@ class DataCollectionService:
     ) -> Dict[str, Any]:
         # Collect and store crime data from UK Police API 
         try:
-            # Step 1: Fetch data from API service
+            # Fetch data from API service
             logger.info(f"Collecting crime data for location: {lat}, {lon}")
             crime_response = await crime_service.get_crimes(
                 lat=lat,
@@ -63,13 +63,13 @@ class DataCollectionService:
                 limit=limit
             )
             
-            # Step 2: Get database session
+            # Get database session
             db = next(get_db())
             collected_count = 0
             duplicate_count = 0
             error_count = 0
             
-            # Step 3: Process each crime record
+            # Process each crime record
             for crime_schema in crime_response.crimes:
                 try:
                     # Extract location from crime data
