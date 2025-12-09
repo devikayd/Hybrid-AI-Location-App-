@@ -17,7 +17,7 @@ function Chip({ label, value, color = 'info' }) {
 export default function SidePanel() {
   const recent = useMapStore((s) => s.recentSearches);
   const { center } = useMapStore();
-  const { data: summary } = useSummary();
+  const { data: summary, error: summaryError, isLoading: summaryLoading } = useSummary();
   const { data: scores, error: scoresError, isLoading: scoresLoading } = useScores();
   
   // Use shared location data hook (prevents duplicate API calls)
@@ -34,15 +34,12 @@ export default function SidePanel() {
   const newsCount = news.length;
   const poisCount = pois.length;
 
-  // Debug logging (remove in production)
-  if (scoresError) {
-    console.error('Scores API Error:', scoresError);
-  }
-  if (scoresLoading) {
-    console.log('Scores loading...');
-  }
-  if (scores) {
-    console.log('Scores data:', scores);
+  // Debug logging (only log errors, not loading states or data)
+  if (scoresError && process.env.NODE_ENV === 'development') {
+    // Only log if it's not a timeout (timeouts are expected for slow APIs)
+    if (!scoresError.message?.includes('timeout')) {
+      console.error('Scores API Error:', scoresError);
+    }
   }
 
   const safety = scores?.safety_score ?? null;
@@ -66,7 +63,17 @@ export default function SidePanel() {
 
       <div className="card">
         <h3 className="text-sm font-medium mb-2">AI Summary</h3>
-        <p className="text-sm text-gray-800 whitespace-pre-wrap">{summary?.narrative || 'Searching area for insights...'}</p>
+        {summaryLoading ? (
+          <p className="text-sm text-gray-600">Generating summary...</p>
+        ) : summaryError ? (
+          <p className="text-sm text-gray-600">
+            Summary temporarily unavailable. Please try again later.
+          </p>
+        ) : summary?.narrative ? (
+          <p className="text-sm text-gray-800 whitespace-pre-wrap">{summary.narrative}</p>
+        ) : (
+          <p className="text-sm text-gray-600">Searching area for insights...</p>
+        )}
       </div>
 
       <LocationDataList />

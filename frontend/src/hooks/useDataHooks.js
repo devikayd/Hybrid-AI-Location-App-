@@ -58,6 +58,8 @@ export function useSummary({ radius_km = 5, include_crimes = true, include_event
     }),
     staleTime: 5 * 60_000,
     enabled: !!center,
+    retry: 1, // Only retry once
+    retryDelay: 2000, // Wait 2 seconds before retry
   });
 }
 
@@ -68,6 +70,8 @@ export function useScores({ radius_km = 5 } = {}) {
     queryFn: () => getScores({ lat: center.lat, lon: center.lon, radius_km }),
     staleTime: 5 * 60_000,
     enabled: !!center,
+    retry: 1, // Only retry once
+    retryDelay: 2000, // Wait 2 seconds before retry
   });
 }
 

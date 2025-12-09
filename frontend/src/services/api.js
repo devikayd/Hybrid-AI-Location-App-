@@ -10,10 +10,13 @@ export const api = axios.create({
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response) {
-      console.error('API Error:', error.response.status, error.response.data);
-    } else {
-      console.error('API Error:', error.message);
+    // Only log errors in development, and skip timeout errors (they're expected for slow APIs)
+    if (process.env.NODE_ENV === 'development' && !error.message?.includes('timeout')) {
+      if (error.response) {
+        console.error('API Error:', error.response.status, error.response.data);
+      } else if (!error.message?.includes('timeout')) {
+        console.error('API Error:', error.message);
+      }
     }
     return Promise.reject(error);
   }
@@ -54,9 +57,12 @@ export const getScores = async (params) => {
   return res.data;
 };
 
-// New location data endpoint
+// New location data endpoint - needs longer timeout due to multiple API calls
 export const getLocationData = async (params) => {
-  const res = await api.get('/v1/location-data', { params });
+  const res = await api.get('/v1/location-data', { 
+    params,
+    timeout: 60000 // 60 seconds - backend makes multiple API calls (events, POIs, news, crimes)
+  });
   return res.data;
 };
 

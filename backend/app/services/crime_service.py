@@ -123,64 +123,95 @@ class CrimeService:
     ) -> List[CrimeData]:
         """Fetch crime data from UK Police API"""
         
-        # Generate date range
         # UK Police API requires YYYY-MM format and only provides data for past months
-        # Get the most recent available month (typically 1-2 months ago)
-        end_date = datetime.now()
+        # Try multiple months (starting from most recent) until we get data
         # UK Police API typically has data up to 1-2 months ago
-        # Request the most recent available month
-        target_month = end_date - timedelta(days=30)  # Go back 1 month to get available data
+        now = datetime.now()
         
-        params = {
-            "lat": str(lat),
-            "lng": str(lon),
-            "date": f"{target_month.strftime('%Y-%m')}"
-        }
+        # Try months starting from 1 month ago, going back up to 3 months
+        # This ensures we get the most recent available data
+        all_crimes = []
         
-        logger.debug(f"Requesting crimes for date: {params['date']} (current date: {end_date.strftime('%Y-%m-%d')})")
-        
-        if category:
-            params["category"] = category
-        
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.get(
-                    f"{self.base_url}/crimes-street/all-crime",
-                    params=params
-                )
-                response.raise_for_status()
-                
-                data = response.json()
-                
-                # Convert to our schema and limit results
-                crimes = []
-                for item in data[:limit]:
-                    try:
-                        crime = CrimeData(
-                            id=item.get("id", 0),
-                            category=item.get("category", "Unknown"),
-                            location_type=item.get("location_type"),
-                            location=item.get("location"),
-                            context=item.get("context"),
-                            outcome_status=item.get("outcome_status"),
-                            persistent_id=item.get("persistent_id"),
-                            date=item.get("date", ""),
-                            month=item.get("month", "")
-                        )
-                        crimes.append(crime)
-                    except Exception as e:
-                        logger.warning(f"Invalid crime data: {e}")
+        for months_back in range(1, min(months + 1, 4)):  # Try 1, 2, 3 months back
+            # Calculate target month
+            if now.month <= months_back:
+                # If we need to go back past January, go to previous year
+                target_year = now.year - 1
+                target_month_num = now.month + (12 - months_back)
+            else:
+                target_year = now.year
+                target_month_num = now.month - months_back
+            
+            target_month = datetime(target_year, target_month_num, 1)
+            date_str = f"{target_month.strftime('%Y-%m')}"
+            
+            params = {
+                "lat": str(lat),
+                "lng": str(lon),
+                "date": date_str
+            }
+            
+            if category:
+                params["category"] = category
+            
+            logger.info(f"Requesting crimes for date: {date_str} (current date: {now.strftime('%Y-%m-%d')}, {months_back} month(s) back)")
+            
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                try:
+                    response = await client.get(
+                        f"{self.base_url}/crimes-street/all-crime",
+                        params=params
+                    )
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    
+                    # Convert to our schema
+                    for item in data:
+                        try:
+                            crime = CrimeData(
+                                id=item.get("id", 0),
+                                category=item.get("category", "Unknown"),
+                                location_type=item.get("location_type"),
+                                location=item.get("location"),
+                                context=item.get("context"),
+                                outcome_status=item.get("outcome_status"),
+                                persistent_id=item.get("persistent_id"),
+                                date=item.get("date", ""),
+                                month=item.get("month", "")
+                            )
+                            all_crimes.append(crime)
+                        except Exception as e:
+                            logger.warning(f"Invalid crime data: {e}")
+                            continue
+                    
+                    logger.info(f"Fetched {len(data)} crimes for {date_str}, total so far: {len(all_crimes)}")
+                    
+                    # If we got data, continue to next month to collect more
+                    # Stop if we've reached the limit
+                    if len(all_crimes) >= limit:
+                        break
+                        
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 404:
+                        # 404 means no data for this month, try next month
+                        logger.debug(f"No crime data available for {date_str}, trying next month...")
                         continue
-                
-                logger.info(f"Fetched {len(crimes)} crimes for location {lat}, {lon}")
-                return crimes
-                
-            except httpx.TimeoutException:
-                raise ExternalAPIException("UK Police", "Request timeout")
-            except httpx.HTTPStatusError as e:
-                raise ExternalAPIException("UK Police", f"HTTP {e.response.status_code}: {e.response.text}")
-            except httpx.RequestError as e:
-                raise ExternalAPIException("UK Police", f"Request error: {str(e)}")
+                    else:
+                        # Other HTTP errors, log and continue
+                        logger.warning(f"HTTP error {e.response.status_code} for {date_str}: {e.response.text}")
+                        continue
+                except httpx.TimeoutException:
+                    logger.warning(f"Timeout requesting crimes for {date_str}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error requesting crimes for {date_str}: {e}")
+                    continue
+        
+        # Limit results
+        crimes = all_crimes[:limit]
+        logger.info(f"Fetched total {len(crimes)} crimes for location {lat}, {lon} (from {len(all_crimes)} collected)")
+        return crimes
     
     def _generate_summary(self, crime_response: CrimeResponse) -> CrimeSummary:
         """Generate crime summary statistics"""

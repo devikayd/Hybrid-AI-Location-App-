@@ -30,6 +30,8 @@ export function useLocationData() {
     }),
     enabled: !!(center && center.lat && center.lon),
     staleTime: 60_000, // 1 minute
+    retry: 1, // Retry once on failure
+    retryDelay: 2000, // Wait 2 seconds before retry
   });
 }
 

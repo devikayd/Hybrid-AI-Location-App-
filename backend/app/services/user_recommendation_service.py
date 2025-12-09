@@ -103,6 +103,10 @@ class UserRecommendationService:
                         lat=item.lat,
                         lon=item.lon,
                         category=item.category,
+                        subtype=item.subtype,
+                        url=item.url,
+                        date=item.date,
+                        metadata=item.metadata,
                         relevance_reason=relevance_reason,
                         match_score=0.5  # Default score for recent items
                     ))
@@ -139,6 +143,10 @@ class UserRecommendationService:
                         lat=item.lat,
                         lon=item.lon,
                         category=item.category,
+                        subtype=item.subtype,
+                        url=item.url,
+                        date=item.date,
+                        metadata=item.metadata,
                         relevance_reason=relevance_reason,
                         match_score=match_score
                     ))

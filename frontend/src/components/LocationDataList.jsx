@@ -12,7 +12,7 @@ const MAX_HEIGHT = MAX_VISIBLE_ITEMS * ITEM_HEIGHT; // ~440px for 4 items
 
 export default function LocationDataList() {
   const { center } = useMapStore();
-  const [filterType, setFilterType] = useState('all'); // 'all', 'event', 'poi', 'news', 'crime', 'recommendations'
+  const [filterType, setFilterType] = useState('all'); // for 'all', 'event', 'poi', 'news', 'crime', 'recommendations'
   const [selectedItem, setSelectedItem] = useState(null); // For modal
   
   // Get userId from sessionStorage (shared with useLocationData hook)
@@ -41,7 +41,7 @@ export default function LocationDataList() {
     }),
     enabled: !!(center && center.lat && center.lon),
     staleTime: 60_000,
-    refetchOnWindowFocus: false, // Don't refetch on window focus to avoid unnecessary calls
+    refetchOnWindowFocus: false,
   });
 
   // Mutation for like/save interactions - MUST be before any conditional returns
@@ -212,18 +212,6 @@ export default function LocationDataList() {
   const crimes = Array.isArray(data?.crimes) ? data.crimes : [];
   const recommendations = Array.isArray(recommendationsData?.recommendations) ? recommendationsData.recommendations : [];
 
-  // Debug logging (remove in production)
-  if (process.env.NODE_ENV === 'development') {
-    console.log("Events: ", events)
-    console.log('Location Data Debug:', {
-      events: events.length,
-      pois: pois.length,
-      news: news.length,
-      crimes: crimes.length,
-      dataKeys: Object.keys(data || {})
-    });
-  }
-
   // Safely map items with error handling
   const allItems = [
     ...events
@@ -313,6 +301,24 @@ export default function LocationDataList() {
       })
       .filter(Boolean),
   ];
+
+  // Debug logging to help diagnose issues (after allItems is declared)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Location Data Debug:', {
+      events: events.length,
+      pois: pois.length,
+      news: news.length,
+      crimes: crimes.length,
+      recommendations: recommendations.length,
+      dataKeys: Object.keys(data || {}),
+      rawData: data,
+      error: error,
+      allItemsLength: allItems.length,
+      samplePOI: pois[0],
+      sampleNews: news[0],
+      sampleCrime: crimes[0]
+    });
+  }
 
   // Filter items by selected type
   const filteredItems = filterType === 'all' 
@@ -447,9 +453,16 @@ export default function LocationDataList() {
                     <span className="font-medium text-sm truncate">
                       {item.title}
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-white/50">
-                      {item.section}
-                    </span>
+                    {item.section && item.section !== 'Recommendations' && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-white/50">
+                        {item.section}
+                      </span>
+                    )}
+                    {item.is_recommendation && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">
+                        ⭐ Rec
+                      </span>
+                    )}
                   </div>
                   {item.description && (
                     <p className="text-xs text-gray-700 line-clamp-2 mb-1">
@@ -457,7 +470,7 @@ export default function LocationDataList() {
                     </p>
                   )}
                   <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
-                    {/* Time indicators - no LIVE button */}
+                    {/* Time indicators */}
                     {item.metadata?.hours_ago !== undefined && item.metadata.hours_ago !== null && item.metadata.hours_ago > 0 && (
                       <span className="text-red-600 font-medium">
                         {formatTimeAgo(item.metadata.hours_ago)}
@@ -517,9 +530,16 @@ export default function LocationDataList() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h2 className="text-lg font-semibold text-gray-900 truncate">{selectedItem.title}</h2>
-                    <span className="text-xs px-2 py-0.5 rounded bg-white/50 flex-shrink-0">
-                      {selectedItem.section}
-                    </span>
+                    {selectedItem.section && selectedItem.section !== 'Recommendations' && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-white/50 flex-shrink-0">
+                        {selectedItem.section}
+                      </span>
+                    )}
+                    {selectedItem.is_recommendation && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700 flex-shrink-0">
+                        ⭐ Recommendation
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
                     {/* Time indicators in modal */}
@@ -615,14 +635,6 @@ export default function LocationDataList() {
                           return selectedItem.date;
                         }
                       })()}
-                    </p>
-                  </div>
-                )}
-                {selectedItem.lat && selectedItem.lon && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Location</h3>
-                    <p className="text-sm text-gray-900">
-                      {Number(selectedItem.lat).toFixed(4)}, {Number(selectedItem.lon).toFixed(4)}
                     </p>
                   </div>
                 )}

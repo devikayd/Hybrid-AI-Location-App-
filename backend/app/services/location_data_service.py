@@ -64,14 +64,20 @@ class LocationDataService:
             # Collect all data concurrently
             events, pois, news, crimes = await self._collect_all_data(lat, lon, radius_km)
             
+            # Log before filtering
+            logger.info(f"Before filtering: {len(events)} events, {len(pois)} pois, {len(news)} news, {len(crimes)} crimes")
+            
             # Filter to show only real-time/recent incidents
             # Events: Use cascading fallback (24h past/7d future -> 7d past/14d future -> 14d past/30d future)
             events = self._filter_events_with_fallback(events)
             # News: Use cascading fallback (24 hours -> 7 days -> 14 days)
             news = self._filter_news_with_fallback(news)
-            # Crimes: Use cascading fallback (7 days -> 30 days -> 60 days)
+            # Crimes: Use cascading fallback (up to 5 months old)
             crimes = self._filter_crimes_with_fallback(crimes)
             # POIs don't have dates, so keep all of them (they're static locations)
+            
+            # Log after filtering
+            logger.info(f"After filtering: {len(events)} events, {len(pois)} pois, {len(news)} news, {len(crimes)} crimes")
             
             # Sort by recency (most recent first)
             events = self._sort_by_recency(events)
@@ -138,7 +144,18 @@ class LocationDataService:
         news = results[2] if not isinstance(results[2], Exception) else []
         crimes = results[3] if not isinstance(results[3], Exception) else []
         
+        # Log detailed information about what was collected
         logger.info(f"Collected data in {elapsed_time:.2f}s: {len(events)} events, {len(pois)} pois, {len(news)} news, {len(crimes)} crimes")
+        
+        # Log exceptions if any
+        if isinstance(results[0], Exception):
+            logger.error(f"Events collection failed: {results[0]}")
+        if isinstance(results[1], Exception):
+            logger.error(f"POIs collection failed: {results[1]}")
+        if isinstance(results[2], Exception):
+            logger.error(f"News collection failed: {results[2]}")
+        if isinstance(results[3], Exception):
+            logger.error(f"Crimes collection failed: {results[3]}")
         
         return events, pois, news, crimes
     
@@ -182,12 +199,20 @@ class LocationDataService:
     async def _collect_pois(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
         """Collect POI items with priority sorting"""
         try:
-            poi_response = await pois_service.get_pois(
-                lat=lat,
-                lon=lon,
-                radius_km=radius_km,
-                limit=200  # Get more to sort from
-            )
+            logger.info(f"Collecting POIs for {lat}, {lon} with radius {radius_km}km")
+            try:
+                poi_response = await pois_service.get_pois(
+                    lat=lat,
+                    lon=lon,
+                    radius_km=radius_km,
+                    limit=200  # Get more to sort from
+                )
+            except Exception as e:
+                # If Overpass API rate limited or fails, return empty list instead of crashing
+                logger.warning(f"POI API failed for {lat}, {lon}: {e}. Returning empty list.")
+                return []
+            
+            logger.info(f"POI API returned {len(poi_response.pois)} POIs for {lat}, {lon}")
             
             items = []
             for poi in poi_response.pois:
@@ -283,12 +308,17 @@ class LocationDataService:
         """Collect news items (recent news)"""
         try:
             # Get more news to filter from (we'll filter to last 7 days)
-            news_response = await news_service.get_news(
-                lat=lat,
-                lon=lon,
-                radius_km=radius_km,
-                limit=100  # Get more to filter from
-            )
+            try:
+                news_response = await news_service.get_news(
+                    lat=lat,
+                    lon=lon,
+                    radius_km=radius_km,
+                    limit=100  # Get more to filter from
+                )
+            except Exception as e:
+                # If NewsAPI rate limited or fails, return empty list instead of crashing
+                logger.warning(f"News API failed for {lat}, {lon}: {e}. Returning empty list.")
+                return []
             
             logger.info(f"Collected {len(news_response.articles)} news articles from API for location {lat}, {lon}")
             
@@ -319,7 +349,7 @@ class LocationDataService:
                     }
                 ))
             
-            logger.info(f"Created {len(items)} news LocationItems from {len(news_response.articles)} articles")
+            logger.info(f"Created {len(items)} news LocationItems from {len(news_response.articles)} articles for {lat}, {lon}")
             return items
         except Exception as e:
             logger.error(f"Error collecting news for {lat}, {lon}: {e}", exc_info=True)
@@ -388,32 +418,94 @@ class LocationDataService:
     
     def _filter_crimes_with_fallback(self, items: List[LocationItem]) -> List[LocationItem]:
         """
-        Filter crimes with cascading fallback:
-        1. Try last 7 days (most recent)
-        2. If no results, try last 30 days
-        3. If still no results, try last 60 days (2 months)
+        Filter crimes to show most recent crimes from the last 2-5 months.
         
-        This ensures users always see crime data if available, even if it's not super recent.
-        UK Police API provides monthly aggregated data (typically 1-2 months old), so this
-        fallback ensures we show available data.
+        Strategy:
+        1. Keep all crimes from the last 2-5 months (60-150 days)
+        2. Sort by recency (most recent first)
+        3. Return top N most recent crimes (limit to reasonable number)
+        
+        UK Police API provides monthly aggregated data (typically 1-2 months old),
+        so we fetch data from last 5 months and show the most recent ones.
         """
         if not items:
+            logger.warning("No crime items to filter")
             return []
         
-        # Try progressively wider time windows
-        fallback_windows = [7, 30, 60]  # days
+        logger.info(f"Filtering {len(items)} crimes: keeping most recent from last 2-5 months")
         
-        for days in fallback_windows:
-            filtered = self._filter_crimes_by_days(items, days)
-            if len(filtered) > 0:
-                logger.info(f"Crime filtering: Found {len(filtered)} crimes using {days}-day window (from {len(items)} total)")
-                return filtered
-            else:
-                logger.debug(f"Crime filtering: No crimes found in last {days} days, trying next window...")
+        now = datetime.now(timezone.utc)
+        # Keep crimes from last 5 months (up to 150 days old)
+        # UK Police API data is typically 1-2 months old, so we accept crimes up to 5 months old
+        # Then we'll sort and show the most recent ones
+        max_days_ago = 150  # 5 months ago (oldest we'll accept)
         
-        # If all windows return 0, log warning and return empty
-        logger.warning(f"Crime filtering: No crimes found in any time window (7, 30, or 60 days) from {len(items)} total crimes")
-        return []
+        cutoff_oldest = now - timedelta(days=max_days_ago)
+        
+        logger.debug(f"Crime filtering window: up to {max_days_ago} days ago (from {cutoff_oldest.date()} to {now.date()})")
+        
+        filtered = []
+        parsed_count = 0
+        filtered_out_count = 0
+        
+        for item in items:
+            if not item.date:
+                continue
+            
+            try:
+                item_date = self._parse_date(item.date)
+                if not item_date:
+                    continue
+                
+                parsed_count += 1
+                days_ago = (now - item_date).total_seconds() / 86400
+                
+                # Keep crimes up to 5 months old (0-150 days)
+                # UK Police API data is typically 1-2 months old, so this will include all available data
+                if cutoff_oldest <= item_date <= now:
+                    if not item.metadata:
+                        item.metadata = {}
+                    item.metadata["days_ago"] = days_ago
+                    item.metadata["hours_ago"] = days_ago * 24
+                    filtered.append(item)
+                else:
+                    filtered_out_count += 1
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Could not parse crime date: {item.date} - {e}")
+                continue
+        
+        # Sort by recency (most recent first) - this ensures we show the most recent crimes from the 2-5 month window
+        filtered.sort(key=lambda x: self._parse_date(x.date) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        
+        # Limit to top 100 most recent crimes to avoid overwhelming the UI
+        max_crimes = 100
+        if len(filtered) > max_crimes:
+            logger.info(f"Limiting to top {max_crimes} most recent crimes (from {len(filtered)} total in 2-5 month window)")
+            filtered = filtered[:max_crimes]
+        
+        if len(filtered) == 0:
+            logger.warning(f"Crime filtering: No crimes found in last {max_days_ago} days from {len(items)} total crimes. Parsed: {parsed_count}, Filtered out: {filtered_out_count}")
+            # Log sample dates to help debug
+            if items:
+                sample_dates = [item.date for item in items[:5] if item.date]
+                sample_parsed = []
+                for item in items[:5]:
+                    if item.date:
+                        parsed = self._parse_date(item.date)
+                        if parsed:
+                            days_ago = (now - parsed).total_seconds() / 86400
+                            sample_parsed.append(f"{item.date} -> {parsed.date()} ({days_ago:.1f} days ago)")
+                        else:
+                            sample_parsed.append(f"{item.date} -> FAILED TO PARSE")
+                logger.warning(f"Sample crime dates: {sample_dates}. Parsed: {sample_parsed}")
+        else:
+            # Log date range of filtered crimes
+            if filtered:
+                oldest_date = self._parse_date(filtered[-1].date)
+                newest_date = self._parse_date(filtered[0].date)
+                logger.info(f"Crime filtering: Found {len(filtered)} most recent crimes from last {max_days_ago} days (from {len(items)} total, {parsed_count} parsed). Date range: {newest_date.date()} to {oldest_date.date()}")
+        
+        return filtered
     
     def _filter_news_with_fallback(self, items: List[LocationItem]) -> List[LocationItem]:
         """
@@ -438,8 +530,20 @@ class LocationDataService:
             else:
                 logger.debug(f"News filtering: No news found in last {hours} hours ({hours//24} days), trying next window...")
         
-        # If all windows return 0, log warning and return empty
-        logger.warning(f"News filtering: No news found in any time window (24h, 7d, or 14d) from {len(items)} total articles")
+        # If all windows return 0, log warning with sample dates
+        sample_dates = [item.date for item in items[:5] if item.date]
+        sample_parsed = []
+        now = datetime.now(timezone.utc)
+        for item in items[:5]:
+            if item.date:
+                parsed = self._parse_date(item.date)
+                if parsed:
+                    hours_ago = (now - parsed).total_seconds() / 3600
+                    sample_parsed.append(f"{item.date} -> {parsed.date()} ({hours_ago:.1f} hours ago)")
+                else:
+                    sample_parsed.append(f"{item.date} -> FAILED TO PARSE")
+        
+        logger.warning(f"News filtering: No news found in any time window (24h, 7d, or 14d) from {len(items)} total articles. Sample dates: {sample_dates}. Parsed: {sample_parsed}")
         return []
     
     def _filter_news_by_hours(self, items: List[LocationItem], hours: int) -> List[LocationItem]:
@@ -482,26 +586,40 @@ class LocationDataService:
         crime_past_cutoff = now - timedelta(days=days)
         filtered = []
         
+        parsed_count = 0
+        filtered_out_count = 0
+        
         for item in items:
             if not item.date:
+                logger.debug(f"Crime item {item.id} has no date field")
                 continue
             
             try:
                 item_date = self._parse_date(item.date)
                 if not item_date:
+                    logger.debug(f"Could not parse crime date: {item.date} for item {item.id}")
                     continue
                 
+                parsed_count += 1
+                days_ago = (now - item_date).total_seconds() / 86400
+                
                 if crime_past_cutoff <= item_date <= now:
-                    days_ago = (now - item_date).total_seconds() / 86400
-                    
                     if not item.metadata:
                         item.metadata = {}
                     item.metadata["days_ago"] = days_ago
                     item.metadata["hours_ago"] = days_ago * 24
                     filtered.append(item)
+                else:
+                    filtered_out_count += 1
+                    # Log first few filtered items for debugging
+                    if filtered_out_count <= 3:
+                        logger.debug(f"Crime filtered out: date={item.date}, parsed={item_date.date()}, days_ago={days_ago:.1f}, cutoff_days={days}, cutoff_date={crime_past_cutoff.date()}")
             except (ValueError, TypeError) as e:
                 logger.debug(f"Could not parse crime date: {item.date} - {e}")
                 continue
+        
+        if len(filtered) == 0 and len(items) > 0:
+            logger.warning(f"Crime filtering ({days} days): {len(items)} total, {parsed_count} parsed, {filtered_out_count} filtered out, 0 passed")
         
         return filtered
     
@@ -688,6 +806,7 @@ class LocationDataService:
             "%Y-%m-%dT%H:%M:%S",        # 2024-01-15T10:30:00
             "%Y-%m-%d %H:%M:%S",        # 2024-01-15 10:30:00
             "%Y-%m-%d",                 # 2024-01-15
+            "%Y-%m",                    # 2024-01 (monthly format from UK Police API)
         ]
         
         for fmt in formats:
@@ -726,15 +845,20 @@ class LocationDataService:
     async def _collect_crimes(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
         """Collect crime items"""
         try:
-            # Get crimes from last 3 months (we'll filter to configured days)
+            # Get crimes from last 5 months (we'll filter to show most recent from 2-5 months)
             # UK Police API provides monthly aggregated data (typically 1-2 months old)
-            # Request 3 months to ensure we have enough data to filter from
-            crime_response = await crime_service.get_crimes(
-                lat=lat,
-                lon=lon,
-                months=3,  # Get 3 months of data (UK Police data is typically 1-2 months old)
-                limit=200  # Get more to filter from
-            )
+            # Request 5 months to ensure we have enough data to filter and sort by recency
+            try:
+                crime_response = await crime_service.get_crimes(
+                    lat=lat,
+                    lon=lon,
+                    months=5,  # Get 5 months of data to filter most recent from 2-5 months
+                    limit=300  # Get more to filter and sort from
+                )
+            except Exception as e:
+                # If UK Police API fails (404, rate limit, etc.), return empty list instead of crashing
+                logger.warning(f"Crime API failed for {lat}, {lon}: {e}. Returning empty list.")
+                return []
             
             logger.info(f"Collected {len(crime_response.crimes)} crimes from API for location {lat}, {lon}")
             
@@ -777,7 +901,7 @@ class LocationDataService:
                         }
                     ))
             
-            logger.info(f"Created {len(items)} crime LocationItems from {len(crime_response.crimes)} crimes")
+            logger.info(f"Created {len(items)} crime LocationItems from {len(crime_response.crimes)} crimes for {lat}, {lon}")
             return items
         except Exception as e:
             logger.error(f"Error collecting crimes for {lat}, {lon}: {e}", exc_info=True)

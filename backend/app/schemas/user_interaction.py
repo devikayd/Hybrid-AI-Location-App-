@@ -69,6 +69,10 @@ class UserRecommendationItem(BaseModel):
     lat: Decimal = Field(..., description="Item latitude")
     lon: Decimal = Field(..., description="Item longitude")
     category: Optional[str] = Field(None, description="Item category")
+    subtype: Optional[str] = Field(None, description="Item subtype")
+    url: Optional[str] = Field(None, description="Item URL")
+    date: Optional[str] = Field(None, description="Item date")
+    metadata: Optional[dict] = Field(None, description="Additional item metadata")
     relevance_reason: str = Field(..., description="Why this item was recommended")
     match_score: float = Field(..., description="Match score based on user interests (0-1)")
 
