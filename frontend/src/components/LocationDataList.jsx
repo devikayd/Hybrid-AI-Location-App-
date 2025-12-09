@@ -471,7 +471,7 @@ export default function LocationDataList() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
-                    {/* Time indicators in modal - no LIVE button */}
+                    {/* Time indicators in modal */}
                     {selectedItem.metadata?.hours_ago !== undefined && selectedItem.metadata.hours_ago !== null && selectedItem.metadata.hours_ago > 0 && (
                       <span className="text-red-600 font-medium">
                         {formatTimeAgo(selectedItem.metadata.hours_ago)}
@@ -602,14 +602,16 @@ export default function LocationDataList() {
                   <h3 className="text-xs font-semibold text-gray-500 mb-2">Additional Information</h3>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <dl className="grid grid-cols-2 gap-2 text-sm">
-                      {Object.entries(selectedItem.metadata).map(([key, value]) => (
-                        value && (
-                          <div key={key}>
-                            <dt className="font-medium text-gray-700 capitalize">{key.replace(/_/g, ' ')}:</dt>
-                            <dd className="text-gray-600">{String(value)}</dd>
-                          </div>
-                        )
-                      ))}
+                      {Object.entries(selectedItem.metadata)
+                        .filter(([key]) => key !== 'hours_ahead' && key !== 'hours_ago') // Exclude hours_ahead and hours_ago as they're already displayed in formatted form above
+                        .map(([key, value]) => (
+                          value && (
+                            <div key={key}>
+                              <dt className="font-medium text-gray-700 capitalize">{key.replace(/_/g, ' ')}:</dt>
+                              <dd className="text-gray-600">{String(value)}</dd>
+                            </div>
+                          )
+                        ))}
                     </dl>
                   </div>
                 </div>

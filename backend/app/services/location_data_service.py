@@ -162,14 +162,15 @@ class LocationDataService:
                         description=event.description.get("text", "") if isinstance(event.description, dict) else (str(event.description) if event.description else ""),
                         lat=Decimal(str(event.venue.latitude)),
                         lon=Decimal(str(event.venue.longitude)),
-                        category=event.category_id or "general",
+                        category=event.category_id or "General",
                         subtype="free" if event.is_free else "paid",
                         distance_km=None,  # Will be calculated if needed
                         date=event.start.get("utc", "") if isinstance(event.start, dict) else "",
                         url=event.url,
                         metadata={
                             "is_free": event.is_free,
-                            "venue_name": event.venue.name if event.venue else None
+                            "venue_name": event.venue.name if event.venue else None,
+                            "category_id": event.category_id  # Keep original ID in metadata for reference
                         }
                     ))
             

@@ -5,10 +5,10 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   // temporary
-  server: {
-    allowedHosts: [
-      // removethisss
-      'unjoyfully-uninfinite-luca.ngrok-free.dev'
-    ]
-  }
+  // server: {
+  //   allowedHosts: [
+  //     // removethisss
+  //     'unjoyfully-uninfinite-luca.ngrok-free.dev'
+  //   ]
+  // }
 })

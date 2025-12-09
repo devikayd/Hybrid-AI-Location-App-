@@ -295,11 +295,14 @@ class EventsService:
                         is_free = True
                         break
             
-            # Categories
+            # Categories - Ticketmaster provides segment names directly
             classifications = item.get("classifications", [])
             category_id = None
+            category_name = None
             if classifications:
-                category_id = classifications[0].get("segment", {}).get("id")
+                segment = classifications[0].get("segment", {})
+                category_id = segment.get("id")
+                category_name = segment.get("name")  # Ticketmaster provides readable name
             
             return EventData(
                 id=event_id,
@@ -313,7 +316,7 @@ class EventsService:
                 online_event=False,  # Ticketmaster doesn't clearly indicate online events
                 is_free=is_free,
                 venue=venue,
-                category_id=str(category_id) if category_id else None,
+                category_id=category_name if category_name else (str(category_id) if category_id else None),  # Use name if available, otherwise ID
                 subcategory_id=None,
                 format_id=None
             )
