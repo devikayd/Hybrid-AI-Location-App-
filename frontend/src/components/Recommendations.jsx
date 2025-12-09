@@ -34,17 +34,8 @@ export default function Recommendations() {
     return null;
   }
 
-  // Show message if no interactions yet
-  if (!isLoading && !isError && recommendationsData?.based_on_interactions === 0) {
-    return (
-      <div className="card">
-        <h3 className="text-sm font-medium mb-2">Recommendations</h3>
-        <p className="text-sm text-gray-600">
-          Start liking items to get personalized recommendations!
-        </p>
-      </div>
-    );
-  }
+  // Show initial recommendations even if no interactions yet
+  // (backend now returns 5 most recent items when there are no interactions)
 
   // Show loading state
   if (isLoading) {
@@ -101,9 +92,13 @@ export default function Recommendations() {
     <div className="card">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium">Recommendations</h3>
-        {totalInteractions > 0 && (
+        {totalInteractions > 0 ? (
           <span className="text-xs text-gray-500">
             Based on {totalInteractions} {totalInteractions === 1 ? 'interaction' : 'interactions'}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-500">
+            Upcoming
           </span>
         )}
       </div>

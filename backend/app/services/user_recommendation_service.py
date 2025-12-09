@@ -7,6 +7,7 @@ from typing import List, Optional
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from collections import Counter
+from datetime import datetime
 
 from app.core.config import settings
 from app.schemas.user_interaction import UserRecommendationItem, UserRecommendationsResponse
@@ -36,15 +37,6 @@ class UserRecommendationService:
             # Get user preferences from interactions
             user_prefs = await user_interaction_service.get_user_preferences(user_id, db)
             
-            if user_prefs["total_interactions"] == 0:
-                # No interactions yet, return empty recommendations
-                return UserRecommendationsResponse(
-                    user_id=user_id,
-                    recommendations=[],
-                    based_on_interactions=0,
-                    total_recommendations=0
-                )
-            
             # Get all location data
             location_data = await location_data_service.get_location_data(
                 lat=lat,
@@ -52,6 +44,75 @@ class UserRecommendationService:
                 radius_km=radius_km,
                 user_id=user_id
             )
+            
+            if user_prefs["total_interactions"] == 0:
+                # No interactions yet, return 5 most recent items from all types
+                all_items = location_data.events + location_data.pois + location_data.news + location_data.crimes
+                
+                # Sort by date (most recent first)
+                # Items with dates come first, then by type priority
+                def get_sort_key(item):
+                    # Priority: events > news > crimes > pois (for items without dates)
+                    type_priority = {"event": 0, "news": 1, "crime": 2, "poi": 3}.get(item.type, 4)
+                    
+                    # Try to get date for sorting
+                    if item.date:
+                        try:
+                            item_date = datetime.fromisoformat(item.date.replace('Z', '+00:00'))
+                            # Return negative timestamp for reverse sort (most recent first)
+                            return (-item_date.timestamp(), type_priority)
+                        except:
+                            pass
+                    
+                    # If no date, use hours_ahead or hours_ago from metadata
+                    if item.metadata:
+                        hours_ahead = item.metadata.get("hours_ahead")
+                        hours_ago = item.metadata.get("hours_ago")
+                        if hours_ahead is not None:
+                            return (-hours_ahead, type_priority)  # Negative for reverse sort
+                        if hours_ago is not None:
+                            return (hours_ago, type_priority)  # Positive for reverse sort
+                    
+                    # Fallback: use type priority
+                    return (999999, type_priority)
+                
+                sorted_items = sorted(all_items, key=get_sort_key)
+                
+                # Take top 5 most recent items
+                recent_items = sorted_items[:5]
+                
+                # Convert to recommendation items
+                recommendations = []
+                for item in recent_items:
+                    relevance_reason = f"Recently added {item.type}"
+                    if item.date:
+                        relevance_reason = f"Recent {item.type}"
+                    elif item.metadata:
+                        hours_ahead = item.metadata.get("hours_ahead")
+                        hours_ago = item.metadata.get("hours_ago")
+                        if hours_ahead:
+                            relevance_reason = f"Upcoming {item.type}"
+                        elif hours_ago:
+                            relevance_reason = f"Recent {item.type}"
+                    
+                    recommendations.append(UserRecommendationItem(
+                        id=item.id,
+                        type=item.type,
+                        title=item.title,
+                        description=item.description,
+                        lat=item.lat,
+                        lon=item.lon,
+                        category=item.category,
+                        relevance_reason=relevance_reason,
+                        match_score=0.5  # Default score for recent items
+                    ))
+                
+                return UserRecommendationsResponse(
+                    user_id=user_id,
+                    recommendations=recommendations,
+                    based_on_interactions=0,
+                    total_recommendations=len(recommendations)
+                )
             
             # Score items based on user preferences
             scored_items = []

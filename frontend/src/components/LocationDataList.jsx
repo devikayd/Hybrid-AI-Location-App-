@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Heart, X } from 'lucide-react';
-import { addInteraction } from '../services/api';
+import { addInteraction, getUserRecommendations } from '../services/api';
 import { useMapStore } from '../stores/mapStore';
 import { useLocationData } from '../hooks/useLocationData';
 
@@ -12,7 +12,7 @@ const MAX_HEIGHT = MAX_VISIBLE_ITEMS * ITEM_HEIGHT; // ~440px for 4 items
 
 export default function LocationDataList() {
   const { center } = useMapStore();
-  const [filterType, setFilterType] = useState('all'); // 'all', 'event', 'poi', 'news', 'crime'
+  const [filterType, setFilterType] = useState('all'); // 'all', 'event', 'poi', 'news', 'crime', 'recommendations'
   const [selectedItem, setSelectedItem] = useState(null); // For modal
   
   // Get userId from sessionStorage (shared with useLocationData hook)
@@ -29,6 +29,20 @@ export default function LocationDataList() {
   
   // Use shared location data hook (prevents duplicate API calls)
   const { data, isLoading, error } = useLocationData();
+  
+  // Fetch recommendations - will automatically refetch when invalidated after interactions
+  const { data: recommendationsData } = useQuery({
+    queryKey: ['user-recommendations', center, userId],
+    queryFn: () => getUserRecommendations(userId, {
+      lat: center?.lat || 51.5074,
+      lon: center?.lon || -0.1278,
+      radius_km: 10,
+      limit: 10
+    }),
+    enabled: !!(center && center.lat && center.lon),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false, // Don't refetch on window focus to avoid unnecessary calls
+  });
 
   // Mutation for like/save interactions - MUST be before any conditional returns
   const interactionMutation = useMutation({
@@ -147,6 +161,7 @@ export default function LocationDataList() {
       crime: '⚠️',
       news: '📰',
       poi: '📍',
+      recommendation: '⭐',
     };
     return icons[type] || '📍';
   };
@@ -157,6 +172,7 @@ export default function LocationDataList() {
       crime: 'text-red-600 bg-red-50 border-red-200',
       news: 'text-yellow-600 bg-yellow-50 border-yellow-200',
       poi: 'text-green-600 bg-green-50 border-green-200',
+      recommendation: 'text-purple-600 bg-purple-50 border-purple-200',
     };
     return colors[type] || 'text-gray-600 bg-gray-50 border-gray-200';
   };
@@ -190,10 +206,11 @@ export default function LocationDataList() {
   }
 
   // Safely combine all items with defensive checks
-  const events = Array.isArray(data.events) ? data.events : [];
-  const pois = Array.isArray(data.pois) ? data.pois : [];
-  const news = Array.isArray(data.news) ? data.news : [];
-  const crimes = Array.isArray(data.crimes) ? data.crimes : [];
+  const events = Array.isArray(data?.events) ? data.events : [];
+  const pois = Array.isArray(data?.pois) ? data.pois : [];
+  const news = Array.isArray(data?.news) ? data.news : [];
+  const crimes = Array.isArray(data?.crimes) ? data.crimes : [];
+  const recommendations = Array.isArray(recommendationsData?.recommendations) ? recommendationsData.recommendations : [];
 
   // Debug logging (remove in production)
   if (process.env.NODE_ENV === 'development') {
@@ -277,11 +294,31 @@ export default function LocationDataList() {
         }
       })
       .filter(Boolean),
+    ...recommendations
+      .filter(item => item && typeof item === 'object')
+      .map(item => {
+        try {
+          return { 
+            ...item, 
+            section: 'Recommendations', 
+            type: item.type || 'recommendation',
+            id: item.id || `recommendation_${Math.random()}`,
+            title: item.title || 'Untitled Recommendation',
+            is_recommendation: true  // Flag to identify recommendations
+          };
+        } catch (e) {
+          console.error('Error mapping recommendation item:', e, item);
+          return null;
+        }
+      })
+      .filter(Boolean),
   ];
 
   // Filter items by selected type
   const filteredItems = filterType === 'all' 
     ? allItems 
+    : filterType === 'recommendations'
+    ? allItems.filter(item => item.is_recommendation === true)
     : allItems.filter(item => item.type === filterType);
 
   // Count items by type for display
@@ -290,6 +327,7 @@ export default function LocationDataList() {
     pois: pois.length,
     news: news.length,
     crimes: crimes.length,
+    recommendations: recommendations.length,
   };
 
   if (allItems.length === 0) {
@@ -302,6 +340,7 @@ export default function LocationDataList() {
           <div>POIs: {counts.pois}</div>
           <div>News: {counts.news}</div>
           <div>Crimes: {counts.crimes}</div>
+          <div>Recommendations: {counts.recommendations}</div>
         </div>
       </div>
     );
@@ -370,12 +409,24 @@ export default function LocationDataList() {
             ⚠️ Crimes ({counts.crimes})
           </button>
         )}
+        {counts.recommendations > 0 && (
+          <button
+            onClick={() => setFilterType('recommendations')}
+            className={`text-xs px-2 py-1 rounded transition-colors ${
+              filterType === 'recommendations' 
+                ? 'bg-purple-600 text-white' 
+                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+            }`}
+          >
+            ⭐ Recommendations ({counts.recommendations})
+          </button>
+        )}
       </div>
 
       {/* Items list - scrollable container showing 4-5 items */}
       {filteredItems.length === 0 ? (
         <div className="text-sm text-gray-500 py-4 text-center">
-          No {filterType === 'all' ? '' : filterType} items to display
+          No {filterType === 'all' ? '' : filterType === 'recommendations' ? 'recommendations' : filterType} items to display
         </div>
       ) : (
         <div 

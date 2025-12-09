@@ -3,7 +3,6 @@ import { useMapStore } from '../stores/mapStore';
 import { useSummary, useScores } from '../hooks/useDataHooks';
 import { useLocationData } from '../hooks/useLocationData';
 import LocationDataList from './LocationDataList';
-import Recommendations from './Recommendations';
 
 function Chip({ label, value, color = 'info' }) {
   const colorClass = {
@@ -71,8 +70,6 @@ export default function SidePanel() {
       </div>
 
       <LocationDataList />
-
-      <Recommendations />
 
       <div className="card">
         <h3 className="text-sm font-medium mb-2">Recent Searches</h3>
