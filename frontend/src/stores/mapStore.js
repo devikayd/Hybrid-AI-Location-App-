@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export const useMapStore = create((set, get) => ({
   center: { lat: 51.5074, lon: -0.1278 },
-  zoom: 11,
+  zoom: 13,
   recentSearches: [],
   showRecentSearches: false,
   layers: {
