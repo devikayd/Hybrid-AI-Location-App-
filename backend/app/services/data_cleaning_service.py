@@ -1,5 +1,14 @@
 """
 Data Cleaning and Preprocessing Service
+
+What this service does:
+- Cleans raw data collected from APIs
+- Removes duplicates
+- Handles missing values
+- Normalizes data formats
+- Validates data quality
+- Flags data for review
+- Prepares data for ML training
 """
 
 import logging
@@ -20,10 +29,37 @@ from app.utils.data_validators import data_validator
 logger = logging.getLogger(__name__)
 
 
+def _convert_numpy_types(obj: Any) -> Any:
+    """Convert numpy types to native Python types for JSON serialization"""
+    if isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: _convert_numpy_types(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy_types(item) for item in obj]
+    return obj
+
+
 class DataCleaningService:
     """
     Data Cleaning Service
-
+    
+    Purpose:
+    - Clean and preprocess raw data for ML training
+    - Remove duplicates and handle missing values
+    - Normalize data formats
+    - Validate data quality
+    
+    How it works:
+    1. Load data from database (SQLAlchemy)
+    2. Convert to pandas DataFrame (for easy manipulation)
+    3. Apply cleaning operations
+    4. Validate cleaned data
+    5. Store results back to database
     """
     
     def __init__(self):
@@ -45,12 +81,33 @@ class DataCleaningService:
     ) -> Dict[str, Any]:
         """
         Clean crime data
+        
+        What it does:
+        1. Load raw crime data from database
+        2. Remove duplicates (by crime_id, location_hash)
+        3. Handle missing values (fill defaults, drop invalid)
+        4. Normalize formats (dates, categories)
+        5. Validate data quality
+        6. Flag problematic records
+        
+        Parameters:
+        - limit: Maximum records to process (None = all)
+        - dry_run: If True, don't save changes (just report)
+        
+        Returns:
+        - Dictionary with cleaning statistics
+        
+        Example:
+        >>> service = DataCleaningService()
+        >>> result = await service.clean_crime_data(limit=1000, dry_run=True)
+        >>> print(result['duplicates_removed'])
+        25
         """
         db = None
         try:
             logger.info(f"Starting crime data cleaning (limit={limit}, dry_run={dry_run})")
             
-            # Load raw data from database
+            # Step 1: Load raw data from database
             db = next(get_db())
             query = db.query(CrimeData).filter(CrimeData.processed == 0)
             
@@ -64,17 +121,17 @@ class DataCleaningService:
                 logger.info("No raw crime data to clean")
                 if db:
                     db.close()
-                return {
+                return _convert_numpy_types({
                     'total_records': 0,
                     'duplicates_removed': 0,
                     'missing_values_handled': 0,
                     'invalid_records_flagged': 0,
                     'cleaned_records': 0
-                }
+                })
             
             logger.info(f"Loaded {total_records} raw crime records")
             
-            # Convert to pandas DataFrame (for easy manipulation)
+            # Step 2: Convert to pandas DataFrame (for easy manipulation)
             # Why pandas? Makes data cleaning operations much easier
             data = []
             for crime in crimes:
@@ -95,7 +152,7 @@ class DataCleaningService:
             df = pd.DataFrame(data)
             logger.info(f"Converted to DataFrame: {len(df)} rows, {len(df.columns)} columns")
             
-            # Remove duplicates
+            # Step 3: Remove duplicates
             # Strategy: Keep first occurrence, remove duplicates by:
             # - crime_id (if present)
             # - location_hash + category + month (if crime_id missing)
@@ -113,7 +170,7 @@ class DataCleaningService:
             total_duplicates = duplicates_by_id + duplicates_by_hash
             logger.info(f"Removed {total_duplicates} duplicate records ({duplicates_by_id} by ID, {duplicates_by_hash} by hash)")
             
-            # Handle missing values
+            # Step 4: Handle missing values
             missing_before = df.isnull().sum().sum()
             
             # Fill missing crime_type with category
@@ -132,7 +189,7 @@ class DataCleaningService:
             missing_handled = missing_before - df.isnull().sum().sum()
             logger.info(f"Handled {missing_handled} missing values, dropped {len(critical_missing)} records with critical missing fields")
             
-            # Normalize formats
+            # Step 5: Normalize formats
             # Normalize category (lowercase, strip whitespace)
             df['category'] = df['category'].str.lower().str.strip()
             
@@ -149,7 +206,7 @@ class DataCleaningService:
             
             logger.info("Normalized data formats")
             
-            # Validate data quality
+            # Step 6: Validate data quality
             invalid_records = []
             for idx, row in df.iterrows():
                 crime_dict = row.to_dict()
@@ -170,7 +227,7 @@ class DataCleaningService:
                     )
                     db.commit()
             
-            # Mark cleaned records as processed
+            # Step 7: Mark cleaned records as processed
             cleaned_ids = df['id'].tolist()
             if not dry_run:
                 db.query(CrimeData).filter(CrimeData.id.in_(cleaned_ids)).update(
@@ -188,7 +245,7 @@ class DataCleaningService:
             self.stats['missing_values_handled'] += missing_handled
             self.stats['invalid_records_flagged'] += len(invalid_records)
             
-            return {
+            result = {
                 'total_records': total_records,
                 'duplicates_removed': total_duplicates,
                 'missing_values_handled': missing_handled,
@@ -196,6 +253,8 @@ class DataCleaningService:
                 'cleaned_records': len(cleaned_ids),
                 'invalid_records': invalid_records[:10]  # First 10 for review
             }
+            # Convert numpy types to native Python types for JSON serialization
+            return _convert_numpy_types(result)
             
         except Exception as e:
             logger.error(f"Crime data cleaning failed: {e}", exc_info=True)
@@ -215,6 +274,16 @@ class DataCleaningService:
     ) -> Dict[str, Any]:
         """
         Clean news data
+        
+        What it does:
+        1. Load raw news data
+        2. Remove duplicates (by article_id)
+        3. Handle missing values
+        4. Normalize text fields
+        5. Validate data quality
+        
+        Returns:
+        - Dictionary with cleaning statistics
         """
         db = None
         try:
@@ -233,13 +302,13 @@ class DataCleaningService:
             if total_records == 0:
                 if db:
                     db.close()
-                return {
+                return _convert_numpy_types({
                     'total_records': 0,
                     'duplicates_removed': 0,
                     'missing_values_handled': 0,
                     'invalid_records_flagged': 0,
                     'cleaned_records': 0
-                }
+                })
             
             # Convert to DataFrame
             data = []
@@ -322,13 +391,14 @@ class DataCleaningService:
             self.stats['missing_values_handled'] += missing_handled
             self.stats['invalid_records_flagged'] += len(invalid_records)
             
-            return {
+            result = {
                 'total_records': total_records,
                 'duplicates_removed': duplicates_removed,
                 'missing_values_handled': missing_handled,
                 'invalid_records_flagged': len(invalid_records),
                 'cleaned_records': len(cleaned_ids)
             }
+            return _convert_numpy_types(result)
             
         except Exception as e:
             logger.error(f"News data cleaning failed: {e}", exc_info=True)
@@ -348,6 +418,16 @@ class DataCleaningService:
     ) -> Dict[str, Any]:
         """
         Clean POI data
+        
+        What it does:
+        1. Load raw POI data
+        2. Remove duplicates (by poi_id, location_hash)
+        3. Handle missing values
+        4. Normalize formats
+        5. Validate data quality
+        
+        Returns:
+        - Dictionary with cleaning statistics
         """
         db = None
         try:
@@ -366,13 +446,13 @@ class DataCleaningService:
             if total_records == 0:
                 if db:
                     db.close()
-                return {
+                return _convert_numpy_types({
                     'total_records': 0,
                     'duplicates_removed': 0,
                     'missing_values_handled': 0,
                     'invalid_records_flagged': 0,
                     'cleaned_records': 0
-                }
+                })
             
             # Convert to DataFrame
             data = []
@@ -459,13 +539,14 @@ class DataCleaningService:
             self.stats['missing_values_handled'] += missing_handled
             self.stats['invalid_records_flagged'] += len(invalid_records)
             
-            return {
+            result = {
                 'total_records': total_records,
                 'duplicates_removed': total_duplicates,
                 'missing_values_handled': missing_handled,
                 'invalid_records_flagged': len(invalid_records),
                 'cleaned_records': len(cleaned_ids)
             }
+            return _convert_numpy_types(result)
             
         except Exception as e:
             logger.error(f"POI data cleaning failed: {e}", exc_info=True)
@@ -485,6 +566,13 @@ class DataCleaningService:
     ) -> Dict[str, Any]:
         """
         Clean all data types
+        
+        What it does:
+        - Cleans crime, news, and POI data
+        - Returns combined statistics
+        
+        Returns:
+        - Dictionary with combined cleaning statistics
         """
         try:
             logger.info(f"Starting full data cleaning (limit_per_type={limit_per_type}, dry_run={dry_run})")
@@ -522,6 +610,13 @@ class DataCleaningService:
     def _normalize_month(self, month_str: str) -> str:
         """
         Normalize month format to YYYY-MM
+        
+        Example:
+        >>> service = DataCleaningService()
+        >>> service._normalize_month("2024-01-15")
+        '2024-01'
+        >>> service._normalize_month("2024/01")
+        '2024-01'
         """
         if not month_str or str(month_str).strip() == '' or str(month_str).lower() == 'nan':
             return datetime.now().strftime('%Y-%m')
