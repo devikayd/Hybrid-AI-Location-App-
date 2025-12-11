@@ -29,6 +29,22 @@ from app.core.exceptions import AppException
 logger = logging.getLogger(__name__)
 
 
+def _convert_numpy_types(obj: Any) -> Any:
+    """Convert numpy types to native Python types for JSON serialization"""
+    if XGBOOST_AVAILABLE:
+        if isinstance(obj, (np.integer, np.int64, np.int32)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64, np.float32)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+    if isinstance(obj, dict):
+        return {k: _convert_numpy_types(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy_types(item) for item in obj]
+    return obj
+
+
 class ScoringService:
     """Service for safety and popularity scoring"""
     
@@ -131,8 +147,12 @@ class ScoringService:
             safety_score = await self._calculate_safety_score(features)
             popularity_score = await self._calculate_popularity_score(features)
             
+            # Ensure scores are native Python floats (not numpy types)
+            safety_score = float(safety_score)
+            popularity_score = float(popularity_score)
+            
             # Calculate overall score
-            overall_score = (safety_score * 0.6 + popularity_score * 0.4)
+            overall_score = float(safety_score * 0.6 + popularity_score * 0.4)
             
             result = {
                 "lat": float(lat),
@@ -146,6 +166,9 @@ class ScoringService:
                 "source": "xgboost" if XGBOOST_AVAILABLE else "deterministic",
                 "generated_at": datetime.utcnow().isoformat()
             }
+            
+            # Convert any numpy types to native Python types for JSON serialization
+            result = _convert_numpy_types(result)
             
             # Cache the result
             await geocode_cache.set(cache_key, result)
@@ -351,6 +374,8 @@ class ScoringService:
                     ]).reshape(1, -1)
                 
                 score = self.safety_model.predict(feature_vector)[0]
+                # Convert numpy types to native Python float for JSON serialization
+                score = float(score)
                 return max(0.0, min(1.0, score))  # Clamp between 0 and 1
             except Exception as e:
                 logger.warning(f"XGBoost safety scoring failed: {e}")
@@ -385,6 +410,8 @@ class ScoringService:
                     ]).reshape(1, -1)
                 
                 score = self.popularity_model.predict(feature_vector)[0]
+                # Convert numpy types to native Python float for JSON serialization
+                score = float(score)
                 return max(0.0, min(1.0, score))  # Clamp between 0 and 1
             except Exception as e:
                 logger.warning(f"XGBoost popularity scoring failed: {e}")

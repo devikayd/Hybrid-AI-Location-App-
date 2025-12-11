@@ -339,7 +339,7 @@ export default function LocationDataList() {
   if (allItems.length === 0) {
     return (
       <div className="card">
-        <h3 className="text-sm font-medium mb-2">Location Data</h3>
+        <h3 className="text-sm font-medium mb-2">Results</h3>
         <div className="text-sm text-gray-500 mb-2">No data available for this location</div>
         <div className="text-xs text-gray-400 space-y-1">
           <p> Try searching a different location</p>
@@ -349,7 +349,7 @@ export default function LocationDataList() {
   }
   return (
     <div className="card">
-      <h3 className="text-sm font-medium mb-2">Location Data</h3>
+      <h3 className="text-sm font-medium mb-2">Results</h3>
       
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-1 mb-3">
