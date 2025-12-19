@@ -5,12 +5,11 @@ import { useMemo } from 'react';
 
 /**
  * Shared hook for location data - prevents duplicate API calls
- * All components should use this hook instead of calling getLocationData directly
  */
 export function useLocationData() {
   const { center } = useMapStore();
   
-  // Generate stable user ID (shared across all components)
+  // Generate stable user ID
   const userId = useMemo(() => {
     let id = sessionStorage.getItem('userId');
     if (!id) {
@@ -29,9 +28,9 @@ export function useLocationData() {
       user_id: userId
     }),
     enabled: !!(center && center.lat && center.lon),
-    staleTime: 60_000, // 1 minute
-    retry: 1, // Retry once on failure
-    retryDelay: 2000, // Wait 2 seconds before retry
+    staleTime: 60_000,
+    retry: 1,
+    retryDelay: 2000,
   });
 }
 

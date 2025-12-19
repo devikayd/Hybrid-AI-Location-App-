@@ -1,16 +1,5 @@
 """
 Training Data Model for storing ML training datasets
-
-Why this model?
-- Stores processed training data with features and labels
-- Enables model training with historical data
-- Tracks feature extraction results
-- Supports model versioning and evaluation
-
-Technology: SQLAlchemy ORM
-- Stores feature vectors for ML models
-- Tracks labels (safety/popularity scores)
-- Supports model versioning
 """
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Index
@@ -19,16 +8,6 @@ from app.core.database import Base
 
 
 class TrainingData(Base):
-    """
-    Training Data Model
-    
-    Stores processed training data with features and labels
-    Used for:
-    - Training XGBoost models (safety, popularity)
-    - Feature storage and versioning
-    - Model evaluation datasets
-    - Tracking training data quality
-    """
     
     __tablename__ = "training_data"
     

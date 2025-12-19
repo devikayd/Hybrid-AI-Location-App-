@@ -24,17 +24,6 @@ async def get_events(
 ) -> EventResponse:
     """
     Get event data for a specific location
-    
-    Retrieves event data from Eventbrite API for the specified coordinates.
-    Results are cached for 30 minutes to improve performance.
-    
-    - **lat**: Latitude (-90 to 90)
-    - **lon**: Longitude (-180 to 180)
-    - **within_km**: Search radius in kilometers (1-100)
-    - **q**: Optional search query for events
-    - **limit**: Maximum number of events to return (1-200)
-    
-    Returns live events with venue, category, and pricing information.
     """
     try:
         result = await events_service.get_events(
@@ -68,18 +57,6 @@ async def get_event_summary(
 ) -> EventSummary:
     """
     Get event summary statistics for a location
-    
-    Provides aggregated statistics about events in the area, including:
-    - Total event count
-    - Free vs paid events
-    - Online vs in-person events
-    - Events by category
-    
-    - **lat**: Latitude (-90 to 90)
-    - **lon**: Longitude (-180 to 180)
-    - **within_km**: Search radius in kilometers (1-100)
-    - **q**: Optional search query for events
-    - **limit**: Maximum number of events to analyze (1-200)
     """
     try:
         result = await events_service.get_event_summary(

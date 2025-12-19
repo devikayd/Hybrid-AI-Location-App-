@@ -1,36 +1,5 @@
 """
 Data Cleaning and Preprocessing Service
-
-What this service does:
-- Cleans raw data collected from APIs
-- Removes duplicates
-- Handles missing values
-- Normalizes data formats
-- Validates data quality
-- Flags data for review
-- Prepares data for ML training
-
-Technologies used:
-- pandas: Data manipulation and cleaning
-- numpy: Numerical operations
-- SQLAlchemy: Database queries
-- Regular expressions: Pattern matching
-- Data validators: Quality checks
-
-Why this is important:
-- ML models need clean, consistent data
-- Dirty data = inaccurate predictions
-- Data quality directly affects model performance
-- Enables reliable feature engineering
-
-How it works:
-1. Load raw data from database
-2. Remove duplicates (by location hash, ID)
-3. Handle missing values (fill, drop, or flag)
-4. Normalize formats (dates, coordinates, text)
-5. Validate data quality
-6. Flag problematic records
-7. Store cleaned data
 """
 
 import logging
@@ -69,19 +38,6 @@ def _convert_numpy_types(obj: Any) -> Any:
 class DataCleaningService:
     """
     Data Cleaning Service
-    
-    Purpose:
-    - Clean and preprocess raw data for ML training
-    - Remove duplicates and handle missing values
-    - Normalize data formats
-    - Validate data quality
-    
-    How it works:
-    1. Load data from database (SQLAlchemy)
-    2. Convert to pandas DataFrame (for easy manipulation)
-    3. Apply cleaning operations
-    4. Validate cleaned data
-    5. Store results back to database
     """
     
     def __init__(self):
@@ -103,27 +59,6 @@ class DataCleaningService:
     ) -> Dict[str, Any]:
         """
         Clean crime data
-        
-        What it does:
-        1. Load raw crime data from database
-        2. Remove duplicates (by crime_id, location_hash)
-        3. Handle missing values (fill defaults, drop invalid)
-        4. Normalize formats (dates, categories)
-        5. Validate data quality
-        6. Flag problematic records
-        
-        Parameters:
-        - limit: Maximum records to process (None = all)
-        - dry_run: If True, don't save changes (just report)
-        
-        Returns:
-        - Dictionary with cleaning statistics
-        
-        Example:
-        >>> service = DataCleaningService()
-        >>> result = await service.clean_crime_data(limit=1000, dry_run=True)
-        >>> print(result['duplicates_removed'])
-        25
         """
         db = None
         try:
@@ -153,8 +88,7 @@ class DataCleaningService:
             
             logger.info(f"Loaded {total_records} raw crime records")
             
-            # Step 2: Convert to pandas DataFrame (for easy manipulation)
-            # Why pandas? Makes data cleaning operations much easier
+            # Step 2: Convert to pandas DataFrame
             data = []
             for crime in crimes:
                 data.append({
@@ -175,16 +109,12 @@ class DataCleaningService:
             logger.info(f"Converted to DataFrame: {len(df)} rows, {len(df.columns)} columns")
             
             # Step 3: Remove duplicates
-            # Strategy: Keep first occurrence, remove duplicates by:
-            # - crime_id (if present)
-            # - location_hash + category + month (if crime_id missing)
             initial_count = len(df)
             
-            # Remove duplicates by crime_id (most reliable)
+            # Remove duplicates by crime_id
             df = df.drop_duplicates(subset=['crime_id'], keep='first')
             duplicates_by_id = initial_count - len(df)
-            
-            # Remove duplicates by location_hash + category + month
+
             initial_count = len(df)
             df = df.drop_duplicates(subset=['location_hash', 'category', 'month'], keep='first')
             duplicates_by_hash = initial_count - len(df)
@@ -212,17 +142,12 @@ class DataCleaningService:
             logger.info(f"Handled {missing_handled} missing values, dropped {len(critical_missing)} records with critical missing fields")
             
             # Step 5: Normalize formats
-            # Normalize category (lowercase, strip whitespace)
             df['category'] = df['category'].str.lower().str.strip()
-            
-            # Normalize month format (ensure YYYY-MM)
-            # Handle None values first
             df['month'] = df['month'].fillna('').astype(str)
             df['month'] = df['month'].apply(self._normalize_month)
-            # Fill any None results with current month
             df['month'] = df['month'].fillna(datetime.now().strftime('%Y-%m'))
             
-            # Normalize coordinates (round to 6 decimal places)
+            # Normalize coordinates
             df['latitude'] = df['latitude'].round(6)
             df['longitude'] = df['longitude'].round(6)
             
@@ -241,7 +166,7 @@ class DataCleaningService:
             
             if invalid_records:
                 logger.warning(f"Found {len(invalid_records)} invalid records")
-                # Flag invalid records (set processed = -1 for review)
+                # Flag invalid records
                 invalid_ids = [r['id'] for r in invalid_records]
                 if not dry_run:
                     db.query(CrimeData).filter(CrimeData.id.in_(invalid_ids)).update(
@@ -273,9 +198,8 @@ class DataCleaningService:
                 'missing_values_handled': missing_handled,
                 'invalid_records_flagged': len(invalid_records),
                 'cleaned_records': len(cleaned_ids),
-                'invalid_records': invalid_records[:10]  # First 10 for review
+                'invalid_records': invalid_records[:10]
             }
-            # Convert numpy types to native Python types for JSON serialization
             return _convert_numpy_types(result)
             
         except Exception as e:
@@ -296,16 +220,6 @@ class DataCleaningService:
     ) -> Dict[str, Any]:
         """
         Clean news data
-        
-        What it does:
-        1. Load raw news data
-        2. Remove duplicates (by article_id)
-        3. Handle missing values
-        4. Normalize text fields
-        5. Validate data quality
-        
-        Returns:
-        - Dictionary with cleaning statistics
         """
         db = None
         try:
@@ -368,7 +282,7 @@ class DataCleaningService:
             # Fill missing source_name with "Unknown"
             df['source_name'] = df['source_name'].fillna('Unknown')
             
-            # Drop records with missing title (critical field)
+            # Drop records with missing title
             df = df.dropna(subset=['title'])
             
             missing_handled = missing_before - df.isnull().sum().sum()
@@ -440,16 +354,6 @@ class DataCleaningService:
     ) -> Dict[str, Any]:
         """
         Clean POI data
-        
-        What it does:
-        1. Load raw POI data
-        2. Remove duplicates (by poi_id, location_hash)
-        3. Handle missing values
-        4. Normalize formats
-        5. Validate data quality
-        
-        Returns:
-        - Dictionary with cleaning statistics
         """
         db = None
         try:
@@ -588,13 +492,6 @@ class DataCleaningService:
     ) -> Dict[str, Any]:
         """
         Clean all data types
-        
-        What it does:
-        - Cleans crime, news, and POI data
-        - Returns combined statistics
-        
-        Returns:
-        - Dictionary with combined cleaning statistics
         """
         try:
             logger.info(f"Starting full data cleaning (limit_per_type={limit_per_type}, dry_run={dry_run})")
@@ -632,32 +529,22 @@ class DataCleaningService:
     def _normalize_month(self, month_str: str) -> str:
         """
         Normalize month format to YYYY-MM
-        
-        Example:
-        >>> service = DataCleaningService()
-        >>> service._normalize_month("2024-01-15")
-        '2024-01'
-        >>> service._normalize_month("2024/01")
-        '2024-01'
         """
         if not month_str or str(month_str).strip() == '' or str(month_str).lower() == 'nan':
             return datetime.now().strftime('%Y-%m')
         
         month_str = str(month_str).strip()
-        
-        # Try parsing different formats
+
         for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%Y-%m', '%Y/%m']:
             try:
                 dt = datetime.strptime(month_str, fmt)
                 return dt.strftime('%Y-%m')
             except (ValueError, TypeError):
                 continue
-        
-        # Fallback: try to extract YYYY-MM from string
+
         if len(month_str) >= 7:
             return month_str[:7]
-        
-        # Last resort: return current month
+
         return datetime.now().strftime('%Y-%m')
     
     def get_stats(self) -> Dict[str, Any]:

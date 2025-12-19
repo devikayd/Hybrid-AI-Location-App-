@@ -20,10 +20,7 @@ async def calculate_scores(
 ):
     """
     Calculate safety and popularity scores for a location
-    
-    Uses machine learning models (XGBoost) with deterministic fallback to analyze
-    crime, event, news, and POI data to generate safety and popularity scores.
-    
+
     - **lat**: Latitude (-90 to 90)
     - **lon**: Longitude (-180 to 180)
     - **radius_km**: Search radius in kilometers (1-50)

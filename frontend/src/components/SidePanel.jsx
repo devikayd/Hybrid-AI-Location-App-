@@ -19,7 +19,7 @@ export default function SidePanel() {
   const { data: summary, error: summaryError, isLoading: summaryLoading } = useSummary();
   const { data: scores, error: scoresError, isLoading: scoresLoading } = useScores();
   
-  // Use shared location data hook (prevents duplicate API calls)
+  // Use shared location data hook
   const { data: locationData } = useLocationData();
 
   // Extract counts from location data - use same logic as LocationDataList
@@ -33,9 +33,9 @@ export default function SidePanel() {
   const newsCount = news.length;
   const poisCount = pois.length;
 
-  // Debug logging (only log errors, not loading states or data)
+  // Debug logging
   if (scoresError && process.env.NODE_ENV === 'development') {
-    // Only log if it's not a timeout (timeouts are expected for slow APIs)
+    // Only log if it's not a timeout
     if (!scoresError.message?.includes('timeout')) {
       console.error('Scores API Error:', scoresError);
     }

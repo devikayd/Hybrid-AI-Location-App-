@@ -1,16 +1,5 @@
 """
 News Data Model for storing historical news data from NewsAPI
-
-Why this model?
-- Stores historical news data for ML training
-- Enables sentiment analysis and NLP features
-- Tracks news coverage patterns per location
-- Supports both safety and popularity score models
-
-Technology: SQLAlchemy ORM + NLP processing
-- Stores news articles with metadata
-- Supports full-text search
-- Tracks publication dates for trend analysis
 """
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Index
@@ -19,16 +8,7 @@ from app.core.database import Base
 
 
 class NewsData(Base):
-    """
-    News Data Model
-    
-    Stores individual news articles from NewsAPI
-    Used for:
-    - Sentiment analysis for safety scoring
-    - News coverage frequency for popularity
-    - NLP feature extraction (keywords, entities)
-    - Training ML models with text features
-    """
+
     
     __tablename__ = "news_data"
     

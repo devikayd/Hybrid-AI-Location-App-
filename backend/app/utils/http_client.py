@@ -83,7 +83,6 @@ class RobustHTTPClient:
                 async with httpx.AsyncClient() as client:
                     response = await client.request(**request_kwargs)
                     
-                    # Check if we should retry
                     if self._should_retry(response, attempt):
                         if attempt < self.retry_config.max_retries:
                             delay = self._calculate_delay(attempt)
@@ -110,7 +109,6 @@ class RobustHTTPClient:
                     logger.error(f"Max retries exceeded for {method} {url}: {str(e)}")
                     raise
         
-        # If we get here, all retries failed
         if last_exception:
             raise last_exception
         else:
@@ -241,7 +239,7 @@ def with_circuit_breaker(
     return decorator
 
 
-# Default HTTP client instances for different services
+# Default HTTP client instances
 def create_service_client(
     service_name: str,
     timeout: float = 30.0,

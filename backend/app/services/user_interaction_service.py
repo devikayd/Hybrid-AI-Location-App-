@@ -175,7 +175,6 @@ class UserInteractionService:
                 if interaction.item_subtype:
                     subtype_counts[interaction.item_subtype] = subtype_counts.get(interaction.item_subtype, 0) + 1
             
-            # Get top preferences (items with at least 2 interactions)
             preferred_types = [t for t, count in type_counts.items() if count >= 2]
             preferred_categories = [c for c, count in category_counts.items() if count >= 2]
             preferred_subtypes = [s for s, count in subtype_counts.items() if count >= 2]

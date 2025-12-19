@@ -23,10 +23,10 @@ async def test_eventbrite_api():
     print("="*60)
     
     if not settings.EVENTBRITE_TOKEN:
-        print("❌ EVENTBRITE_TOKEN is NOT SET in .env file")
+        print("EVENTBRITE_TOKEN is NOT SET in .env file")
         return False
     
-    print(f"✅ EVENTBRITE_TOKEN is SET (length: {len(settings.EVENTBRITE_TOKEN)})")
+    print(f"EVENTBRITE_TOKEN is SET (length: {len(settings.EVENTBRITE_TOKEN)})")
     
     try:
         # Test with London coordinates
@@ -37,13 +37,13 @@ async def test_eventbrite_api():
             within_km=10,
             limit=5
         )
-        print(f"✅ Eventbrite API is working!")
+        print(f"Eventbrite API is working!")
         print(f"   Found {response.total_count} events")
         if response.events:
             print(f"   First event: {response.events[0].name[:50]}...")
         return True
     except Exception as e:
-        print(f"❌ Eventbrite API test failed: {e}")
+        print(f"Eventbrite API test failed: {e}")
         return False
 
 
@@ -54,10 +54,10 @@ async def test_newsapi_key():
     print("="*60)
     
     if not settings.NEWSAPI_KEY:
-        print("❌ NEWSAPI_KEY is NOT SET in .env file")
+        print("NEWSAPI_KEY is NOT SET in .env file")
         return False
     
-    print(f"✅ NEWSAPI_KEY is SET (length: {len(settings.NEWSAPI_KEY)})")
+    print(f"NEWSAPI_KEY is SET (length: {len(settings.NEWSAPI_KEY)})")
     
     try:
         # Test with London coordinates
@@ -68,13 +68,13 @@ async def test_newsapi_key():
             radius_km=50,
             limit=5
         )
-        print(f"✅ NewsAPI is working!")
+        print(f"NewsAPI is working!")
         print(f"   Found {response.total_count} articles")
         if response.articles:
             print(f"   First article: {response.articles[0].title[:50]}...")
         return True
     except Exception as e:
-        print(f"❌ NewsAPI test failed: {e}")
+        print(f"NewsAPI test failed: {e}")
         return False
 
 
@@ -85,10 +85,10 @@ async def test_openrouter_key():
     print("="*60)
     
     if not settings.OPENROUTER_API_KEY:
-        print("❌ OPENROUTER_API_KEY is NOT SET in .env file")
+        print("OPENROUTER_API_KEY is NOT SET in .env file")
         return False
     
-    print(f"✅ OPENROUTER_API_KEY is SET (length: {len(settings.OPENROUTER_API_KEY)})")
+    print(f"OPENROUTER_API_KEY is SET (length: {len(settings.OPENROUTER_API_KEY)})")
     
     try:
         # Test LLM initialization
@@ -96,20 +96,20 @@ async def test_openrouter_key():
         await llm_service.initialize()
         
         if llm_service._client:
-            print("✅ LLM service initialized successfully")
+            print("LLM service initialized successfully")
             
             # Test a simple summary generation
             print("\nTesting summary generation...")
             prompt = "Generate a short summary about London, UK in 2 sentences."
             summary = await llm_service.generate_summary(prompt, max_tokens=100)
-            print(f"✅ LLM summary generation is working!")
+            print(f"LLM summary generation is working!")
             print(f"   Summary: {summary[:100]}...")
             return True
         else:
-            print("❌ LLM service failed to initialize")
+            print("LLM service failed to initialize")
             return False
     except Exception as e:
-        print(f"❌ OpenRouter/LLM test failed: {e}")
+        print(f"OpenRouter/LLM test failed: {e}")
         return False
 
 
@@ -131,15 +131,15 @@ async def main():
     print("="*60)
     
     for service, result in results.items():
-        status = "✅ WORKING" if result else "❌ FAILED"
+        status = "WORKING" if result else "FAILED"
         print(f"{service:20} {status}")
     
     all_working = all(results.values())
     
     if all_working:
-        print("\n🎉 All API keys are working correctly!")
+        print("\nAll API keys are working correctly!")
     else:
-        print("\n⚠️  Some API keys are not working. Please check:")
+        print("\nSome API keys are not working. Please check:")
         print("   1. API keys are set in backend/.env file")
         print("   2. API keys are valid and not expired")
         print("   3. Backend server is running (if testing via API)")

@@ -34,7 +34,7 @@ async def get_pois(
     - **types**: Comma-separated POI types (amenity, tourism, shop values)
     - **limit**: Maximum number of POIs to return (1-500)
     
-    Common POI types include:
+    Common POI types:
     - **Amenities**: restaurant, cafe, bar, pub, hospital, pharmacy, bank, atm, fuel, school, university, library, museum, theatre, cinema, hotel
     - **Tourism**: attraction, museum, gallery, zoo, theme_park
     - **Shops**: supermarket, convenience, clothes, electronics, books
@@ -74,7 +74,7 @@ async def get_poi_summary(
     """
     Get POI summary statistics for a location
     
-    Provides aggregated statistics about POIs in the area, including:
+    Provides aggregated statistics about POIs in the area:
     - Total POI count
     - POIs by type
     - POIs by amenity category

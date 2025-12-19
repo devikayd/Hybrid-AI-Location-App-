@@ -46,33 +46,27 @@ class UserRecommendationService:
             )
             
             if user_prefs["total_interactions"] == 0:
-                # No interactions yet, return 5 most recent items from all types
                 all_items = location_data.events + location_data.pois + location_data.news + location_data.crimes
                 
                 # Sort by date (most recent first)
-                # Items with dates come first, then by type priority
                 def get_sort_key(item):
-                    # Priority: events > news > crimes > pois (for items without dates)
+                    # Priority: events > news > crimes > pois ,for items without dates
                     type_priority = {"event": 0, "news": 1, "crime": 2, "poi": 3}.get(item.type, 4)
                     
-                    # Try to get date for sorting
                     if item.date:
                         try:
                             item_date = datetime.fromisoformat(item.date.replace('Z', '+00:00'))
-                            # Return negative timestamp for reverse sort (most recent first)
                             return (-item_date.timestamp(), type_priority)
                         except:
                             pass
                     
-                    # If no date, use hours_ahead or hours_ago from metadata
                     if item.metadata:
                         hours_ahead = item.metadata.get("hours_ahead")
                         hours_ago = item.metadata.get("hours_ago")
                         if hours_ahead is not None:
-                            return (-hours_ahead, type_priority)  # Negative for reverse sort
+                            return (-hours_ahead, type_priority)
                         if hours_ago is not None:
-                            return (hours_ago, type_priority)  # Positive for reverse sort
-                    
+                            return (hours_ago, type_priority)
                     # Fallback: use type priority
                     return (999999, type_priority)
                 
@@ -108,7 +102,7 @@ class UserRecommendationService:
                         date=item.date,
                         metadata=item.metadata,
                         relevance_reason=relevance_reason,
-                        match_score=0.5  # Default score for recent items
+                        match_score=0.5
                     ))
                 
                 return UserRecommendationsResponse(
@@ -132,7 +126,7 @@ class UserRecommendationService:
                 # Calculate match score based on user preferences
                 match_score = self._calculate_match_score(item, user_prefs)
                 
-                if match_score > 0:  # Only include items with some match
+                if match_score > 0:
                     relevance_reason = self._generate_relevance_reason(item, user_prefs, match_score)
                     
                     scored_items.append(UserRecommendationItem(
@@ -157,8 +151,8 @@ class UserRecommendationService:
             # Limit results
             recommendations = scored_items[:limit]
             
-            # Fallback: If no recommendations found (all items scored 0 or already interacted with),
-            # return recent items similar to the 0 interactions case
+            # Fallback: If no recommendations found
+            # return recent items similar to the 0 interactions
             if len(recommendations) == 0:
                 # Filter out items user has already interacted with
                 available_items = [item for item in all_items if not (item.is_liked or item.is_saved)]
@@ -166,10 +160,9 @@ class UserRecommendationService:
                 if available_items:
                     # Sort by date (most recent first)
                     def get_sort_key(item):
-                        # Priority: events > news > crimes > pois (for items without dates)
+                        # Priority: events > news > crimes > pois, for items without dates
                         type_priority = {"event": 0, "news": 1, "crime": 2, "poi": 3}.get(item.type, 4)
                         
-                        # Try to get date for sorting
                         if item.date:
                             try:
                                 item_date = datetime.fromisoformat(item.date.replace('Z', '+00:00'))
@@ -177,7 +170,6 @@ class UserRecommendationService:
                             except:
                                 pass
                         
-                        # If no date, use hours_ahead or hours_ago from metadata
                         if item.metadata:
                             hours_ahead = item.metadata.get("hours_ahead")
                             hours_ago = item.metadata.get("hours_ago")
@@ -189,7 +181,7 @@ class UserRecommendationService:
                         return (999999, type_priority)
                     
                     sorted_items = sorted(available_items, key=get_sort_key)
-                    recent_items = sorted_items[:min(limit, 5)]  # Return up to limit, but max 5
+                    recent_items = sorted_items[:min(limit, 5)]
                     
                     # Convert to recommendation items
                     recommendations = []
@@ -218,7 +210,7 @@ class UserRecommendationService:
                             date=item.date,
                             metadata=item.metadata,
                             relevance_reason=relevance_reason,
-                            match_score=0.3  # Lower score than personalized matches
+                            match_score=0.3
                         ))
             
             return UserRecommendationsResponse(
@@ -266,7 +258,7 @@ class UserRecommendationService:
         ])
         
         if match_count >= 2:
-            score *= 1.3  # 30% boost for multiple matches
+            score *= 1.3
         
         return min(score, 1.0)  # Cap at 1.0
     

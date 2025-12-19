@@ -1,11 +1,6 @@
 """
 Model Training Router
 
-What this router does:
-- Provides API endpoints for model training
-- Trains XGBoost models (safety & popularity)
-- Returns training metrics and results
-
 Endpoints:
 - POST /api/v1/models/train: Train models
 - POST /api/v1/models/train/safety: Train safety model only
@@ -44,21 +39,6 @@ class TrainingResponse(BaseModel):
 async def train_models(request: TrainingRequest):
     """
     Train XGBoost models
-    
-    What it does:
-    - Trains safety and/or popularity models
-    - Uses training data from database
-    - Evaluates model performance
-    - Saves models to disk
-    
-    Parameters:
-    - test_size: Proportion of data for testing (0.2 = 20%)
-    - random_state: Random seed for reproducibility
-    - min_samples: Minimum samples required for training
-    - model_type: 'safety', 'popularity', or None (both)
-    
-    Returns:
-    - Training results and metrics
     
     Example:
     ```json
@@ -136,9 +116,6 @@ async def train_popularity_model(request: TrainingRequest):
 async def get_training_status():
     """
     Get model training status
-    
-    Returns:
-    - Training statistics and model information
     """
     try:
         stats = model_training_service.get_training_stats()
@@ -177,9 +154,6 @@ async def get_training_status():
 async def get_model_evaluation():
     """
     Get model evaluation metrics
-    
-    Returns:
-    - Model evaluation metrics for both models
     """
     try:
         stats = model_training_service.get_training_stats()

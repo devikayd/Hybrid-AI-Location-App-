@@ -22,31 +22,7 @@ async def get_crimes(
     category: Optional[str] = Query(None, description="Crime category filter"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of crimes to return")
 ) -> CrimeResponse:
-    """
-    Get crime data for a specific location
-    
-    Retrieves crime data from the UK Police API for the specified coordinates.
-    Results are cached for 1 hour to improve performance.
-    
-    - **lat**: Latitude (-90 to 90)
-    - **lon**: Longitude (-180 to 180)
-    - **months**: Number of months to look back (1-24)
-    - **category**: Optional crime category filter
-    - **limit**: Maximum number of crimes to return (1-1000)
-    
-    Common crime categories include:
-    - anti-social-behaviour
-    - burglary
-    - criminal-damage-arson
-    - drugs
-    - other-theft
-    - public-order
-    - robbery
-    - shoplifting
-    - theft-from-the-person
-    - vehicle-crime
-    - violent-crime
-    """
+
     try:
         result = await crime_service.get_crimes(
             lat=Decimal(str(lat)),
@@ -77,20 +53,7 @@ async def get_crime_summary(
     category: Optional[str] = Query(None, description="Crime category filter"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of crimes to analyze")
 ) -> CrimeSummary:
-    """
-    Get crime summary statistics for a location
-    
-    Provides aggregated statistics about crimes in the area, including:
-    - Total crime count
-    - Crimes by category
-    - Crimes by month
-    
-    - **lat**: Latitude (-90 to 90)
-    - **lon**: Longitude (-180 to 180)
-    - **months**: Number of months to look back (1-24)
-    - **category**: Optional crime category filter
-    - **limit**: Maximum number of crimes to analyze (1-1000)
-    """
+
     try:
         result = await crime_service.get_crime_summary(
             lat=Decimal(str(lat)),

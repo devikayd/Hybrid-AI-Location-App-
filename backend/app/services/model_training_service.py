@@ -1,11 +1,5 @@
 """
 Model Training Service
-
-What this service does:
-- Trains XGBoost models using training data from database
-- Evaluates model performance
-- Saves trained models to disk
-- Supports model versioning
 """
 
 import logging
@@ -39,12 +33,6 @@ logger = logging.getLogger(__name__)
 class ModelTrainingService:
     """
     Model Training Service
-    
-    Purpose:
-    - Train XGBoost models (safety & popularity)
-    - Evaluate model performance
-    - Save models to disk
-    - Support model versioning
     """
     
     def __init__(self):
@@ -70,14 +58,6 @@ class ModelTrainingService:
     ) -> Dict[str, Any]:
         """
         Train safety score model
-        
-        What it does:
-        1. Load training data from database (model_type='safety')
-        2. Extract features and labels (safety_score)
-        3. Split into train/test sets
-        4. Train XGBoost model
-        5. Evaluate performance
-        6. Save model to disk
         """
         if not XGBOOST_AVAILABLE:
             raise RuntimeError("XGBoost not available. Install: pip install xgboost scikit-learn joblib")
@@ -199,7 +179,6 @@ class ModelTrainingService:
     ) -> Dict[str, Any]:
         """
         Train popularity score model
-        
         """
         if not XGBOOST_AVAILABLE:
             raise RuntimeError("XGBoost not available. Install: pip install xgboost scikit-learn joblib")
@@ -321,9 +300,6 @@ class ModelTrainingService:
     ) -> Dict[str, Any]:
         """
         Train both safety and popularity models
-        
-        Returns:
-        - Dictionary with results for both models
         """
         results = {}
         

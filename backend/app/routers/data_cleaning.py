@@ -1,15 +1,5 @@
 """
 Data Cleaning API endpoints
-
-Purpose:
-- Provides API endpoints for triggering data cleaning
-- Supports cleaning individual data types or all data
-- Returns cleaning statistics
-
-Technology:
-- FastAPI: REST API framework
-- Pydantic: Request/response validation
-- Async/await: Non-blocking data cleaning
 """
 
 from fastapi import APIRouter, HTTPException, Query
@@ -41,26 +31,7 @@ class CleaningResponse(BaseModel):
 
 @router.post("/clean", response_model=CleaningResponse)
 async def clean_data(request: CleaningRequest):
-    """
-    Clean all data types
-    
-    What it does:
-    - Cleans crime, news, and POI data
-    - Removes duplicates
-    - Handles missing values
-    - Normalizes formats
-    - Validates data quality
-    
-    Parameters:
-    - limit_per_type: Maximum records per type to clean (None = all)
-    - dry_run: If True, don't save changes (just report)
-    - clean_crimes: Clean crime data
-    - clean_news: Clean news data
-    - clean_pois: Clean POI data
-    
-    Returns:
-    - Cleaning statistics for each data type
-    """
+
     try:
         logger.info(f"Starting data cleaning (limit={request.limit_per_type}, dry_run={request.dry_run})")
         
@@ -118,18 +89,7 @@ async def clean_crime_data(
     limit: Optional[int] = Query(None, ge=1, le=10000, description="Maximum records to clean"),
     dry_run: bool = Query(False, description="If True, don't save changes")
 ):
-    """
-    Clean crime data only
-    
-    What it does:
-    - Removes duplicate crime records
-    - Handles missing values
-    - Normalizes formats
-    - Validates data quality
-    
-    Returns:
-    - Crime data cleaning statistics
-    """
+
     try:
         result = await data_cleaning_service.clean_crime_data(limit=limit, dry_run=dry_run)
         

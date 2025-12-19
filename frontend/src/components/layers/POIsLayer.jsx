@@ -26,10 +26,7 @@ function createEmojiPinIcon(emoji, fill = '#2563eb') {
   });
 }
 
-/**
- * Get icon configuration for POI based on category/subtype
- * Returns { emoji, color } for the POI category
- */
+
 function getPOIIconConfig(poi) {
   const category = poi?.category?.toLowerCase() || '';
   const subtype = poi?.subtype?.toLowerCase() || '';

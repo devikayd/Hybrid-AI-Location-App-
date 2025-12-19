@@ -1,14 +1,5 @@
 """
 Script to bootstrap training labels using deterministic scores
-
-This script:
-1. Finds all training_data records without labels
-2. Calculates deterministic safety/popularity scores
-3. Updates records with labels
-4. Enables model training
-
-Usage:
-    python backend/scripts/bootstrap_training_labels.py
 """
 
 import sys
@@ -36,7 +27,7 @@ logger = logging.getLogger(__name__)
 async def bootstrap_labels():
     """Bootstrap labels for training data using deterministic scores"""
     
-    # Initialize scoring service (for deterministic scoring)
+    # Initialize scoring service
     await scoring_service.initialize_models()
     
     db = next(get_db())
@@ -93,8 +84,8 @@ async def bootstrap_labels():
         # Commit changes
         db.commit()
         
-        logger.info(f"✅ Updated {updated_safety} safety records with labels")
-        logger.info(f"✅ Updated {updated_popularity} popularity records with labels")
+        logger.info(f"Updated {updated_safety} safety records with labels")
+        logger.info(f"Updated {updated_popularity} popularity records with labels")
         
         # Check total records with labels
         safety_with_labels = db.query(TrainingData).filter(
@@ -107,15 +98,15 @@ async def bootstrap_labels():
             TrainingData.popularity_score.isnot(None)
         ).count()
         
-        logger.info(f"\n📊 Summary:")
+        logger.info(f"\nSummary:")
         logger.info(f"   Safety records with labels: {safety_with_labels}")
         logger.info(f"   Popularity records with labels: {popularity_with_labels}")
         
         if safety_with_labels >= 50 and popularity_with_labels >= 50:
-            logger.info(f"\n✅ Ready for training! You have enough labeled data.")
+            logger.info(f"\nReady for training! You have enough labeled data.")
             logger.info(f"   Run: POST /api/v1/models/train")
         else:
-            logger.warning(f"\n⚠️  Need more data. Minimum 50 samples required.")
+            logger.warning(f"\nNeed more data. Minimum 50 samples required.")
             logger.warning(f"   Safety: {safety_with_labels}/50")
             logger.warning(f"   Popularity: {popularity_with_labels}/50")
         

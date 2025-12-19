@@ -1,12 +1,6 @@
 """
 Feature Engineering Router
 
-What this router does:
-- Provides API endpoints for feature engineering
-- Extracts features from cleaned data
-- Creates training datasets
-- Stores features in training_data table
-
 Endpoints:
 - POST /api/v1/features/extract: Extract features for a location
 - POST /api/v1/features/batch: Extract features for multiple locations
@@ -77,20 +71,6 @@ async def extract_features_for_location(
 ):
     """
     Extract features for a specific location
-    
-    What it does:
-    1. Loads cleaned data within radius
-    2. Calculates features (crime, POI, news, events)
-    3. Normalizes features
-    4. Stores in training_data table
-    
-    Parameters:
-    - lat, lon: Location coordinates
-    - radius_km: Search radius
-    - location_name: Optional location name
-    
-    Returns:
-    - Extracted features and metadata
     
     Example:
     ```json

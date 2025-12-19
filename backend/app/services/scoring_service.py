@@ -90,7 +90,7 @@ class ScoringService:
             if not model_files:
                 return None, None
             
-            # Sort by modification time (newest first)
+            # Sort by modification time
             model_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
             model_path = model_files[0]
             
@@ -214,7 +214,7 @@ class ScoringService:
             
             total_crimes = crime_response.total_count
             
-            # Calculate crime density (crimes per km²)
+            # Calculate crime density
             area_km2 = math.pi * (radius_km ** 2)
             crime_density = total_crimes / area_km2 if area_km2 > 0 else 0
             
@@ -223,7 +223,7 @@ class ScoringService:
                                if crime.category in ["violent-crime", "robbery", "burglary"])
             violent_crime_ratio = violent_crimes / total_crimes if total_crimes > 0 else 0
             
-            # Recent crime trend (last 3 months vs previous 9 months)
+            # Recent crime trend
             recent_crimes = sum(1 for crime in crime_response.crimes 
                               if self._is_recent_crime(crime.date, months=3))
             recent_crime_ratio = recent_crimes / total_crimes if total_crimes > 0 else 0
@@ -257,7 +257,7 @@ class ScoringService:
             free_events = sum(1 for event in event_response.events if event.is_free)
             free_event_ratio = free_events / total_events if total_events > 0 else 0
             
-            # Event diversity (unique categories)
+            # Event diversity
             categories = set()
             for event in event_response.events:
                 if event.category_id:
@@ -294,7 +294,7 @@ class ScoringService:
             avg_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
             
             # News coverage frequency
-            news_frequency = total_articles / 30  # Articles per day (assuming 30-day period)
+            news_frequency = total_articles / 30 
             
             return {
                 "total_articles": total_articles,
@@ -328,7 +328,7 @@ class ScoringService:
                     amenities.add(poi.tags.amenity)
             poi_diversity = len(amenities)
             
-            # Essential amenities (restaurants, shops, transport)
+            # Essential amenities
             essential_amenities = {"restaurant", "cafe", "shop", "supermarket", "fuel", "bank", "pharmacy"}
             essential_count = sum(1 for poi in poi_response.pois 
                                 if poi.tags.amenity in essential_amenities)
@@ -424,7 +424,7 @@ class ScoringService:
         # Base score
         score = 0.5
         
-        # Crime factors (negative impact)
+        # Crime factors
         crime_density = features.get("crime_density", 0)
         violent_ratio = features.get("violent_crime_ratio", 0)
         recent_ratio = features.get("recent_crime_ratio", 0)

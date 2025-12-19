@@ -24,7 +24,6 @@ async def get_news(
 ) -> NewsResponse:
     """
     Get news data for a specific location
-    
     Retrieves news data from NewsAPI for UK news sources.
     Results are cached for 15 minutes to improve performance.
     
@@ -33,8 +32,6 @@ async def get_news(
     - **radius_km**: Search radius in kilometers (1-500)
     - **q**: Optional search query for news articles
     - **limit**: Maximum number of articles to return (1-100)
-    
-    Returns UK news articles with sentiment analysis and source information.
     """
     try:
         result = await news_service.get_news(

@@ -183,7 +183,7 @@ class NewsService:
                     except Exception as fallback_error:
                         logger.warning(f"Fallback query also failed: {fallback_error}")
                 
-                # Convert to our schema
+                # Convert to schema
                 articles = []
                 for item in articles_data[:limit]:
                     try:
@@ -204,7 +204,7 @@ class NewsService:
                             content=item.get("content")
                         )
                         
-                        # Calculate basic sentiment (simplified)
+                        # Calculate basic sentiment
                         article.sentiment = self._calculate_sentiment(article.title, article.description)
                         
                         articles.append(article)

@@ -1,16 +1,5 @@
 """
 User Interaction Model for storing user likes and saves
-
-Why this model?
-- Tracks user interactions (likes, saves) with location data
-- Enables personalized recommendations based on user preferences
-- Stores interaction history for collaborative filtering
-- Supports user interest-based recommendation system
-
-Technology: SQLAlchemy ORM
-- Stores user interactions with items (events, POIs, news, crimes)
-- Tracks interaction types (like, save)
-- Supports recommendation generation based on user history
 """
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Index, Boolean
@@ -19,17 +8,7 @@ from app.core.database import Base
 
 
 class UserInteraction(Base):
-    """
-    User Interaction Model
-    
-    Stores user interactions (likes, saves) with location-based items
-    Used for:
-    - Tracking user preferences
-    - Generating personalized recommendations
-    - Collaborative filtering
-    - User interest analysis
-    """
-    
+
     __tablename__ = "user_interactions"
     
     # Primary key

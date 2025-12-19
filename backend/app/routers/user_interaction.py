@@ -23,12 +23,7 @@ async def add_interaction(
     db: Session = Depends(get_db)
 ) -> InteractionResponse:
     """
-    Add or toggle a user interaction (like or save)
-    
-    - **user_id**: User identifier (can be session ID for academic purposes)
-    - **interaction**: Interaction details (item_id, item_type, interaction_type: 'like' or 'save')
-    
-    If interaction already exists, it will be toggled (liked -> unliked, saved -> unsaved)
+    Add or toggle a user interaction
     """
     try:
         if interaction.interaction_type not in ["like", "save"]:
@@ -64,11 +59,7 @@ async def get_user_interactions(
     db: Session = Depends(get_db)
 ) -> List[dict]:
     """
-    Get all user interactions (likes and saves)
-    
-    - **user_id**: User identifier
-    - **interaction_type**: Optional filter by 'like' or 'save'
-    - **item_type**: Optional filter by item type
+    Get all user interactions
     """
     try:
         interactions = await user_interaction_service.get_user_interactions(
@@ -95,8 +86,6 @@ async def get_user_preferences(
 ) -> dict:
     """
     Get user preferences based on interaction history
-    
-    Returns preferred types, categories, and subtypes based on user's likes/saves
     """
     try:
         preferences = await user_interaction_service.get_user_preferences(user_id, db)

@@ -122,20 +122,13 @@ class CrimeService:
         limit: int
     ) -> List[CrimeData]:
         """Fetch crime data from UK Police API"""
-        
-        # UK Police API requires YYYY-MM format and only provides data for past months
-        # Try multiple months (starting from most recent) until we get data
-        # UK Police API typically has data up to 1-2 months ago
+
         now = datetime.now()
-        
-        # Try months starting from 1 month ago, going back up to 3 months
-        # This ensures we get the most recent available data
         all_crimes = []
         
-        for months_back in range(1, min(months + 1, 4)):  # Try 1, 2, 3 months back
+        for months_back in range(1, min(months + 1, 4)): 
             # Calculate target month
             if now.month <= months_back:
-                # If we need to go back past January, go to previous year
                 target_year = now.year - 1
                 target_month_num = now.month + (12 - months_back)
             else:
@@ -166,7 +159,7 @@ class CrimeService:
                     
                     data = response.json()
                     
-                    # Convert to our schema
+                    # Convert to schema
                     for item in data:
                         try:
                             crime = CrimeData(
@@ -186,9 +179,7 @@ class CrimeService:
                             continue
                     
                     logger.info(f"Fetched {len(data)} crimes for {date_str}, total so far: {len(all_crimes)}")
-                    
-                    # If we got data, continue to next month to collect more
-                    # Stop if we've reached the limit
+ 
                     if len(all_crimes) >= limit:
                         break
                         

@@ -7,15 +7,15 @@ import { useLocationData } from '../hooks/useLocationData';
 
 // Max visible items in scrollable container (3-4 items)
 const MAX_VISIBLE_ITEMS = 4;
-const ITEM_HEIGHT = 110; // Approximate height per item in pixels
-const MAX_HEIGHT = MAX_VISIBLE_ITEMS * ITEM_HEIGHT; // ~440px for 4 items
+const ITEM_HEIGHT = 110;
+const MAX_HEIGHT = MAX_VISIBLE_ITEMS * ITEM_HEIGHT; 
 
 export default function LocationDataList() {
   const { center } = useMapStore();
-  const [filterType, setFilterType] = useState('all'); // for 'all', 'event', 'poi', 'news', 'crime', 'recommendations'
-  const [selectedItem, setSelectedItem] = useState(null); // For modal
+  const [filterType, setFilterType] = useState('all');
+  const [selectedItem, setSelectedItem] = useState(null);
   
-  // Get userId from sessionStorage (shared with useLocationData hook)
+  // Get userId from sessionStorage
   const userId = React.useMemo(() => {
     let id = sessionStorage.getItem('userId');
     if (!id) {
@@ -27,10 +27,10 @@ export default function LocationDataList() {
 
   const queryClient = useQueryClient();
   
-  // Use shared location data hook (prevents duplicate API calls)
+  // Use shared location data hook 
   const { data, isLoading, error } = useLocationData();
   
-  // Fetch recommendations - will automatically refetch when invalidated after interactions
+  // Fetch recommendations
   const { data: recommendationsData } = useQuery({
     queryKey: ['user-recommendations', center, userId],
     queryFn: () => getUserRecommendations(userId, {
@@ -44,7 +44,6 @@ export default function LocationDataList() {
     refetchOnWindowFocus: false,
   });
 
-  // Mutation for like/save interactions - MUST be before any conditional returns
   const interactionMutation = useMutation({
     mutationFn: ({ item, interactionType }) => addInteraction(userId, {
       item_id: item.id,
@@ -60,12 +59,11 @@ export default function LocationDataList() {
     onSuccess: () => {
       // Refetch location data to update like/save status
       queryClient.invalidateQueries(['location-data', center, userId]);
-      // Also invalidate recommendations (invalidate all for this user regardless of center)
       queryClient.invalidateQueries({ queryKey: ['user-recommendations'], exact: false });
     }
   });
 
-  // Early return if no center set (AFTER all hooks)
+  // Early return if no center set
   if (!center || !center.lat || !center.lon) {
     return (
       <div className="card">
@@ -292,7 +290,7 @@ export default function LocationDataList() {
             type: item.type || 'recommendation',
             id: item.id || `recommendation_${Math.random()}`,
             title: item.title || 'Untitled Recommendation',
-            is_recommendation: true  // Flag to identify recommendations
+            is_recommendation: true
           };
         } catch (e) {
           console.error('Error mapping recommendation item:', e, item);
@@ -302,7 +300,7 @@ export default function LocationDataList() {
       .filter(Boolean),
   ];
 
-  // Debug logging to help diagnose issues (after allItems is declared)
+  // Debug logging to help diagnose issues
   if (process.env.NODE_ENV === 'development') {
     console.log('Location Data Debug:', {
       events: events.length,
@@ -666,7 +664,7 @@ export default function LocationDataList() {
                   <div className="bg-gray-50 rounded-lg p-3">
                     <dl className="grid grid-cols-2 gap-2 text-sm">
                       {Object.entries(selectedItem.metadata)
-                        .filter(([key]) => key !== 'hours_ahead' && key !== 'hours_ago') // Exclude hours_ahead and hours_ago as they're already displayed in formatted form above
+                        .filter(([key]) => key !== 'hours_ahead' && key !== 'hours_ago')
                         .map(([key, value]) => (
                           value && (
                             <div key={key}>

@@ -21,14 +21,6 @@ async def geocode(
 ) -> GeocodeResponse:
     """
     Geocode a location query using Nominatim API
-    
-    This endpoint searches for locations by name, postcode, or address
-    and returns coordinates and formatted address information.
-    
-    - **q**: Search query (place name, postcode, address)
-    - **limit**: Maximum number of results to return (1-10)
-    - **countrycodes**: Country codes to limit search (default: gb for UK)
-    
     Results are cached for 7 days to improve performance and reduce API calls.
     """
     try:
@@ -63,7 +55,6 @@ async def reverse_geocode(
 ):
     """
     Reverse geocode coordinates to address
-    
     Convert latitude and longitude coordinates to a human-readable address.
     
     - **lat**: Latitude (-90 to 90)

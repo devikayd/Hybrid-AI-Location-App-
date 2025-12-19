@@ -15,10 +15,7 @@ from app.routers import health as status, geocode, crime, events, news, pois, su
 from app.core.exceptions import setup_exception_handlers
 
 from app.models import CrimeData, EventData, NewsData, POIData, TrainingData, UserInteraction
-# temporary
-BASE_DIR = Path(__file__).resolve().parent.parent             # .../backend/app -> .../backend
-FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"         # .../hybridWebApp/frontend/dist
-# till here remove
+
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper()),
@@ -92,13 +89,6 @@ app.include_router(data_cleaning.router, prefix="/api/v1", tags=["data-cleaning"
 app.include_router(feature_engineering.router, prefix="/api/v1/features", tags=["feature-engineering"])
 app.include_router(model_training.router, prefix="/api/v1/models", tags=["model-training"])
 
-# temporary
-if FRONTEND_DIST.exists():
-    app.mount(
-        "/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="static"
-    )
-else:
-    logger.warning(f"⚠️ React dist folder not found at {FRONTEND_DIST}")
 # Catch-all for SPA (React router)
 # @app.get("/{full_path:path}")
 def spa_handler(full_path: str):

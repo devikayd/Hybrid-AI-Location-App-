@@ -29,7 +29,7 @@ function createEmojiPinIcon(emoji, fill = '#2563eb') {
 const newsIcon = createEmojiPinIcon('📰', '#eab308');
 
 export default function NewsLayer() {
-  // Use shared location data hook (prevents duplicate API calls)
+  // Use shared location data hook
   const { data, isLoading } = useLocationData();
 
   if (isLoading || !data?.news?.length) return null;

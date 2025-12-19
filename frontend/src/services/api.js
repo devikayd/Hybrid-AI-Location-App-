@@ -4,13 +4,12 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 45000, // Increased to 45 seconds to handle slow APIs (Overpass can be slow)
+  timeout: 45000,
 });
 
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    // Only log errors in development, and skip timeout errors (they're expected for slow APIs)
     if (process.env.NODE_ENV === 'development' && !error.message?.includes('timeout')) {
       if (error.response) {
         console.error('API Error:', error.response.status, error.response.data);
@@ -57,11 +56,11 @@ export const getScores = async (params) => {
   return res.data;
 };
 
-// New location data endpoint - needs longer timeout due to multiple API calls
+// New location data endpoint
 export const getLocationData = async (params) => {
   const res = await api.get('/v1/location-data', { 
     params,
-    timeout: 60000 // 60 seconds - backend makes multiple API calls (events, POIs, news, crimes)
+    timeout: 60000
   });
   return res.data;
 };

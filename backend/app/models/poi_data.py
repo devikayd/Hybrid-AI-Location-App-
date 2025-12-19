@@ -1,16 +1,5 @@
 """
 POI (Point of Interest) Data Model for storing historical POI data from OpenStreetMap
-
-Why this model?
-- Stores historical POI data for ML training
-- Enables feature extraction (amenity density, types)
-- Supports both safety and popularity score models
-- Tracks POI diversity per location
-
-Technology: SQLAlchemy ORM
-- Stores OpenStreetMap POI data
-- Supports categorization and tagging
-- Tracks location data for spatial analysis
 """
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Index
@@ -19,16 +8,6 @@ from app.core.database import Base
 
 
 class POIData(Base):
-    """
-    POI Data Model
-    
-    Stores individual POI records from OpenStreetMap
-    Used for:
-    - Calculating POI density per location
-    - Training safety score models (essential amenities)
-    - Training popularity score models (diversity)
-    - Feature engineering for ML models
-    """
     
     __tablename__ = "poi_data"
     

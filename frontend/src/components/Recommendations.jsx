@@ -6,7 +6,7 @@ import { getUserRecommendations } from '../services/api';
 export default function Recommendations() {
   const { center } = useMapStore();
   
-  // Generate user ID (same as other components for consistency)
+  // Generate user ID
   const userId = React.useMemo(() => {
     let id = sessionStorage.getItem('userId');
     if (!id) {
@@ -29,13 +29,9 @@ export default function Recommendations() {
     staleTime: 60_000,
   });
 
-  // Don't show if no center or no interactions
   if (!center || !center.lat || !center.lon) {
     return null;
   }
-
-  // Show initial recommendations even if no interactions yet
-  // (backend now returns 5 most recent items when there are no interactions)
 
   // Show loading state
   if (isLoading) {

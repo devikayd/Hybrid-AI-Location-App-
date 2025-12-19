@@ -36,7 +36,7 @@ class EventsService:
     ) -> EventResponse:
         """
         Get events data for a location with Redis caching
-        Uses Ticketmaster as primary, falls back to Eventbrite
+        Uses Ticketmaster
         """
         # Generate cache key
         cache_key = event_cache.generate_key(
@@ -66,7 +66,7 @@ class EventsService:
             except Exception as e:
                 logger.warning(f"Ticketmaster fetch failed: {e}")
         
-        # Fallback to Eventbrite if Ticketmaster failed or not configured
+        # Fallback to Eventbrite
         if not events and self.eventbrite_token:
             try:
                 events = await self._fetch_events_from_eventbrite(lat, lon, within_km, query, limit)
@@ -148,7 +148,7 @@ class EventsService:
             "latlong": f"{lat},{lon}",
             "radius": radius_miles,
             "unit": "miles",
-            "size": min(limit, 200),  # Ticketmaster max is 200
+            "size": min(limit, 200),
             "sort": "date,asc"
         }
         
@@ -216,8 +216,7 @@ class EventsService:
         
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
-                # Note: Eventbrite search endpoint may not be available
-                # This is a fallback implementation
+                # Eventbrite search endpoint is not be available
                 response = await client.get(
                     f"{self.eventbrite_base_url}/events/search/",
                     headers=headers,

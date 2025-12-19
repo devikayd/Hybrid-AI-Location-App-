@@ -41,7 +41,7 @@ class FeatureEngineeringService:
             'training_records_created': 0,
             'errors': 0
         }
-        self.feature_version = "v1.0"  # Feature engineering version
+        self.feature_version = "v1.0"
     
     async def extract_features_for_location(
         self,
@@ -64,7 +64,7 @@ class FeatureEngineeringService:
             crime_data = self._load_crime_data(db, lat, lon, radius_km)
             poi_data = self._load_poi_data(db, lat, lon, radius_km)
             news_data = self._load_news_data(db, lat, lon, radius_km)
-            event_data = self._load_event_data(db, lat, lon, radius_km)  # May be empty if model doesn't exist
+            event_data = self._load_event_data(db, lat, lon, radius_km)
             
             # Step 2: Calculate features
             crime_features = feature_calculator.calculate_crime_features(
@@ -114,7 +114,7 @@ class FeatureEngineeringService:
             # Step 7: Check for missing features
             missing_features = self._check_missing_features(normalized_features)
             
-            # Step 8: Store in training_data table (for both safety and popularity models)
+            # Step 8: Store in training_data table
             training_records = []
             
             # Safety model features
@@ -219,19 +219,6 @@ class FeatureEngineeringService:
     ) -> Dict[str, Any]:
         """
         Extract features from all cleaned data in database
-        
-        What it does:
-        1. Find all unique locations in cleaned data
-        2. Group by spatial grid
-        3. Extract features for each grid cell
-        4. Store in training_data table
-        
-        Parameters:
-        - grid_size_km: Size of spatial grid cells (km)
-        - limit: Maximum locations to process
-        
-        Returns:
-        - Dictionary with extraction statistics
         """
         db = None
         try:
@@ -241,9 +228,7 @@ class FeatureEngineeringService:
             
             # Step 1: Find unique locations from cleaned data
             locations = self._find_unique_locations(db, grid_size_km)
-            
-            # Close the outer session before processing locations
-            # (each location will create its own session)
+
             if db:
                 db.close()
                 db = None
@@ -262,7 +247,7 @@ class FeatureEngineeringService:
                     result = await self.extract_features_for_location(
                         Decimal(str(lat)),
                         Decimal(str(lon)),
-                        radius_km=grid_size_km * 2  # Use 2x grid size as radius
+                        radius_km=grid_size_km * 2
                     )
                     results.append(result)
                 except Exception as e:
@@ -295,7 +280,7 @@ class FeatureEngineeringService:
     ) -> pd.DataFrame:
         """Load cleaned crime data within radius"""
         try:
-            # Calculate bounding box (approximate)
+            # Calculate bounding box
             lat_deg = float(lat)
             lon_deg = float(lon)
             
@@ -348,7 +333,7 @@ class FeatureEngineeringService:
             
             pois = db.query(POIData).filter(
                 and_(
-                    POIData.processed == 1,  # Only cleaned data
+                    POIData.processed == 1,
                     POIData.latitude >= lat_deg - lat_offset,
                     POIData.latitude <= lat_deg + lat_offset,
                     POIData.longitude >= lon_deg - lon_offset,
@@ -423,8 +408,7 @@ class FeatureEngineeringService:
     ) -> pd.DataFrame:
         """Load cleaned event data within radius"""
         try:
-            # Note: EventData model may not exist yet
-            # This is a placeholder for when EventData is created
+            # EventData model not exist yet
             from app.models import EventData
             
             lat_deg = float(lat)
@@ -469,13 +453,6 @@ class FeatureEngineeringService:
     ) -> List[Tuple[float, float]]:
         """
         Find unique locations from cleaned data
-        
-        What it does:
-        - Groups data by spatial grid
-        - Returns grid cell centers as locations
-        
-        Returns:
-        - List of (lat, lon) tuples
         """
         locations = set()
         
@@ -535,32 +512,24 @@ class FeatureEngineeringService:
     ) -> float:
         """
         Calculate data quality score (0-1)
-        
-        What it checks:
-        - Data availability (do we have data?)
-        - Data completeness (are fields filled?)
-        - Data diversity (multiple sources)
-        
-        Returns:
-        - Quality score (0-1)
         """
         scores = []
         
         # Crime data quality
         if not crime_data.empty:
-            scores.append(0.3)  # Has crime data
+            scores.append(0.3)
         
         # POI data quality
         if not poi_data.empty:
-            scores.append(0.3)  # Has POI data
+            scores.append(0.3)
         
         # News data quality
         if not news_data.empty:
-            scores.append(0.2)  # Has news data
+            scores.append(0.2)
         
         # Event data quality
         if not event_data.empty:
-            scores.append(0.2)  # Has event data
+            scores.append(0.2)
         
         # Calculate average
         quality_score = sum(scores) if scores else 0.0

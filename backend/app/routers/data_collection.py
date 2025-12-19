@@ -133,20 +133,7 @@ async def collect_all_data(
     months: int = Query(12, ge=1, le=36, description="Historical months for crime data"),
     limit_per_type: int = Query(50, ge=1, le=200, description="Maximum records per data type")
 ):
-    """
-    Collect all data types for a location (convenience endpoint)
-    
-    This endpoint collects crime, event, news, and POI data concurrently
-    for a single location.
-    
-    - **lat**: Latitude (-90 to 90)
-    - **lon**: Longitude (-180 to 180)
-    - **radius_km**: Search radius in kilometers (1-50)
-    - **months**: Historical months for crime data (1-36)
-    - **limit_per_type**: Maximum records per data type (1-200)
-    
-    Returns collection statistics for all data types.
-    """
+
     try:
         lat_decimal = Decimal(str(lat))
         lon_decimal = Decimal(str(lon))
@@ -179,9 +166,6 @@ async def collect_all_data(
 async def get_collection_stats():
     """
     Get data collection statistics
-    
-    Returns overall statistics from the data collection service
-    including total records collected for each data type.
     """
     try:
         stats = data_collection_service.get_stats()

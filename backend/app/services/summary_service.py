@@ -9,7 +9,7 @@ from datetime import datetime
 import asyncio
 
 from app.core.config import settings
-from app.core.redis import geocode_cache  # Reuse cache for summaries
+from app.core.redis import geocode_cache
 from app.schemas.summary import LocationSummary, SummarizeRequest
 from app.services.nlp_service import nlp_service
 from app.services.geocode_service import geocode_service
@@ -118,7 +118,6 @@ class SummaryService:
         if request.include_pois:
             tasks.append(self._collect_poi_data(request, data))
         
-        # Wait for all data collection to complete
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         
@@ -269,7 +268,7 @@ class SummaryService:
                 # Extract city/town name from display_name
                 parts = result.display_name.split(", ")
                 if len(parts) > 1:
-                    return parts[0]  # Usually the most specific location name
+                    return parts[0]
                 return result.display_name
         except Exception as e:
             logger.warning(f"Location name lookup failed: {e}")

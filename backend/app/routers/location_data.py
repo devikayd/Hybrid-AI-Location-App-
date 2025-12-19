@@ -26,9 +26,7 @@ async def get_location_data(
 ) -> LocationDataResponse:
     """
     Get all data for a location (events, POIs, news, crimes)
-    
-    Returns a comprehensive list of all location-based items that can be displayed
-    in a panel/list with like/save functionality.
+    Returns a comprehensive list of all location-based items
     
     - **lat**: Latitude (-90 to 90)
     - **lon**: Longitude (-180 to 180)

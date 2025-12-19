@@ -73,7 +73,6 @@ class DataCollectionService:
             for crime_schema in crime_response.crimes:
                 try:
                     # Extract location from crime data
-                    # UK Police API returns location as nested object
                     location = crime_schema.location
                     if location and location.latitude and location.longitude:
                         crime_lat = float(location.latitude)
@@ -117,7 +116,7 @@ class DataCollectionService:
                     collected_count += 1
                     
                 except IntegrityError:
-                    # Duplicate detected (unique constraint violation)
+                    # Duplicate
                     db.rollback()
                     duplicate_count += 1
                     logger.debug(f"Duplicate crime record: {crime_id}")
@@ -275,14 +274,13 @@ class DataCollectionService:
             
             for article in news_response.articles:
                 try:
-                    # NewsAPI may not have exact location, use search center
                     article_lat = float(article.latitude or lat) if article.latitude else float(lat)
                     article_lon = float(article.longitude or lon) if article.longitude else float(lon)
                     
                     # Generate location hash
                     location_hash = self._generate_location_hash(article_lat, article_lon)
                     
-                    # Check for duplicates (using URL as unique identifier)
+                    # Check for duplicates
                     article_id = article.url or article.title
                     existing_news = db.query(NewsData).filter(
                         NewsData.url == article.url
@@ -371,7 +369,6 @@ class DataCollectionService:
             
             for poi_schema in poi_response.pois:
                 try:
-                    # POI schema uses 'lat' and 'lon' (not 'latitude'/'longitude')
                     poi_lat = float(poi_schema.lat)
                     poi_lon = float(poi_schema.lon)
                     
@@ -414,7 +411,7 @@ class DataCollectionService:
                         poi_id=str(poi_schema.id),
                         name=name,
                         amenity=amenity,
-                        category=None,  # Not in schema, will be set during processing
+                        category=None,
                         type=poi_schema.type,
                         tags=json.dumps(tags_obj.dict()) if tags_obj else None,
                         address=address,
@@ -472,10 +469,6 @@ class DataCollectionService:
         limit_per_type: int = 50
     ) -> Dict[str, Any]:
         # Collect all data types for a location
-        """ 
-        This is the main method for batch data collection.
-        It collects crime, event, news, and POI data concurrently.
-        """
 
         import asyncio
         

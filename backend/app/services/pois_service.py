@@ -139,8 +139,8 @@ class POIsService:
         # Try multiple Overpass instances for better reliability
         overpass_instances = [
             "https://overpass-api.de/api",  # Primary
-            "https://overpass.openstreetmap.ru/api",  # Alternative 1
-            "https://overpass.kumi.systems/api",  # Alternative 2
+            "https://overpass.openstreetmap.ru/api",
+            "https://overpass.kumi.systems/api",
         ]
         
         last_error = None
@@ -162,7 +162,7 @@ class POIsService:
                         data = response.json()
                         elements = data.get("elements", [])
                         
-                        # Convert to our schema and limit results
+                        # Convert to schema and limit results
                         pois = []
                         for element in elements[:limit]:
                             try:
@@ -252,7 +252,6 @@ class POIsService:
     def _build_overpass_query(self, lat: Decimal, lon: Decimal, radius_m: int, types: Optional[str]) -> str:
         """Build Overpass QL query - simplified to reduce timeout risk"""
         
-        # Reduced POI types to prevent timeouts - focus on most common types
         if not types:
             # Priority order: Tourist attractions, Amenities, Essential amenities, Shops
             # Priority 1: Tourist attractions
@@ -281,7 +280,7 @@ class POIsService:
             tourism_types = []
             shop_types = []
         
-        # Build the query - use union to combine results efficiently
+        # Build the query
         # Priority order: Tourist attractions first, then amenities, then shops
         query_parts = []
         
@@ -297,8 +296,7 @@ class POIsService:
         for shop in shop_types[:8]:  # Max 8 shop types
             query_parts.append(f'node["shop"="{shop.strip()}"](around:{radius_m},{lat},{lon});')
         
-        # Combine all queries - use union for efficiency and limit total query size
-        # Limit total query parts to prevent timeout (increased to 25 for more POI types)
+        # Combine all queries
         if len(query_parts) > 25:
             query_parts = query_parts[:25]
             logger.warning(f"Query too complex, limiting to 25 POI types to prevent timeout")

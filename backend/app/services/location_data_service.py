@@ -26,15 +26,15 @@ class LocationDataService:
     
     def __init__(self):
         self.cache_ttl = 1800  # 30 minutes cache
-        # Real-time filtering: configurable via settings
+        # Real-time filtering
         # Events
         self.event_recent_hours = settings.EVENT_RECENT_HOURS  # Show events from last N hours
         self.event_future_hours = settings.EVENT_FUTURE_HOURS  # Show events in next N hours
         # Crimes: UK Police API provides monthly aggregated data
-        # For near real-time, use 1-7 days (shows only most recent crimes)
+        # For near real-time, using 1-7 days 
         self.crime_recent_days = settings.CRIME_RECENT_DAYS  # Show crimes from last N days
         # News: NewsAPI can provide very recent articles
-        # For near real-time, use 1-24 hours (shows only latest news)
+        # For near real-time, using 1-24 hours
         self.news_recent_hours = settings.NEWS_RECENT_HOURS  # Show news from last N hours
     
     async def get_location_data(
@@ -74,7 +74,6 @@ class LocationDataService:
             news = self._filter_news_with_fallback(news)
             # Crimes: Use cascading fallback (up to 5 months old)
             crimes = self._filter_crimes_with_fallback(crimes)
-            # POIs don't have dates, so keep all of them (they're static locations)
             
             # Log after filtering
             logger.info(f"After filtering: {len(events)} events, {len(pois)} pois, {len(news)} news, {len(crimes)} crimes")
@@ -97,9 +96,7 @@ class LocationDataService:
             
             # Cache the result
             await geocode_cache.set(cache_key, location_data.dict(), ttl=self.cache_ttl)
-        
-        # Note: User interaction status will be added by the router using database session
-        
+                
         return location_data
     
     async def _collect_all_data(
@@ -121,8 +118,7 @@ class LocationDataService:
                 logger.warning(f"{api_name} collection failed: {e}")
                 return []
         
-        # Collect with individual timeouts (faster APIs get shorter timeouts)
-        # Reduced POI timeout to prevent long waits - POIs are nice-to-have, not critical
+        # Collect with individual timeouts 
         tasks = [
             collect_with_timeout(self._collect_events(lat, lon, radius_km), 10.0, "Events"),
             collect_with_timeout(self._collect_pois(lat, lon, radius_km), 15.0, "POIs"),  # Reduced from 25s to 15s
@@ -132,19 +128,18 @@ class LocationDataService:
         
         logger.info(f"Starting data collection for {lat}, {lon} with timeouts: Events=10s, POIs=15s, News=10s, Crimes=10s")
         
-        # Run all tasks concurrently - they'll timeout individually
         import time
         start_time = time.time()
         results = await asyncio.gather(*tasks, return_exceptions=True)
         elapsed_time = time.time() - start_time
         
-        # Extract results (already handled exceptions in collect_with_timeout)
+        # Extract results
         events = results[0] if not isinstance(results[0], Exception) else []
         pois = results[1] if not isinstance(results[1], Exception) else []
         news = results[2] if not isinstance(results[2], Exception) else []
         crimes = results[3] if not isinstance(results[3], Exception) else []
         
-        # Log detailed information about what was collected
+        # Log detailed information about collected data
         logger.info(f"Collected data in {elapsed_time:.2f}s: {len(events)} events, {len(pois)} pois, {len(news)} news, {len(crimes)} crimes")
         
         # Log exceptions if any
@@ -181,13 +176,13 @@ class LocationDataService:
                         lon=Decimal(str(event.venue.longitude)),
                         category=event.category_id or "General",
                         subtype="free" if event.is_free else "paid",
-                        distance_km=None,  # Will be calculated if needed
+                        distance_km=None,  
                         date=event.start.get("utc", "") if isinstance(event.start, dict) else "",
                         url=event.url,
                         metadata={
                             "is_free": event.is_free,
                             "venue_name": event.venue.name if event.venue else None,
-                            "category_id": event.category_id  # Keep original ID in metadata for reference
+                            "category_id": event.category_id
                         }
                     ))
             
@@ -205,7 +200,7 @@ class LocationDataService:
                     lat=lat,
                     lon=lon,
                     radius_km=radius_km,
-                    limit=200  # Get more to sort from
+                    limit=200
                 )
             except Exception as e:
                 # If Overpass API rate limited or fails, return empty list instead of crashing
@@ -233,7 +228,7 @@ class LocationDataService:
                     subtype=poi.type,
                     distance_km=poi.distance or None,
                     date=None,
-                    url=website_url,  # Use website as URL
+                    url=website_url,
                     metadata={
                         "amenity": poi.tags.amenity,
                         "tourism": poi.tags.tourism,
@@ -292,7 +287,7 @@ class LocationDataService:
             # Priority 5: Everything else
             return 5
         
-        # Sort by priority, then by distance (closer first)
+        # Sort by priority, then by distance
         sorted_pois = sorted(
             pois,
             key=lambda poi: (
@@ -307,13 +302,12 @@ class LocationDataService:
     async def _collect_news(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
         """Collect news items (recent news)"""
         try:
-            # Get more news to filter from (we'll filter to last 7 days)
             try:
                 news_response = await news_service.get_news(
                     lat=lat,
                     lon=lon,
                     radius_km=radius_km,
-                    limit=100  # Get more to filter from
+                    limit=100
                 )
             except Exception as e:
                 # If NewsAPI rate limited or fails, return empty list instead of crashing
@@ -340,7 +334,7 @@ class LocationDataService:
                     lon=Decimal(str(offset_lon)),
                     category="news",
                     subtype=subtype,
-                    distance_km=0.1,  # Approximate
+                    distance_km=0.1,
                     date=article.publishedAt,
                     url=article.url,
                     metadata={
@@ -360,15 +354,13 @@ class LocationDataService:
         Filter events with cascading fallback for FUTURE events only:
         - Past events: Fixed at last 24 hours (no cascading)
         - Future events: Cascading fallback (7 days -> 14 days -> 30 days)
-        
-        This ensures users see recent past events and upcoming events, expanding future window if needed.
         """
         if not items:
             return []
         
         # Past window is fixed at 24 hours, only cascade future window
-        past_hours = 24  # Fixed: only show events from last 24 hours
-        future_windows = [168, 336, 720]  # 7 days, 14 days, 30 days future
+        past_hours = 24
+        future_windows = [168, 336, 720]
         
         for future_hours in future_windows:
             filtered = self._filter_events_by_window(items, past_hours, future_hours)
@@ -419,14 +411,9 @@ class LocationDataService:
     def _filter_crimes_with_fallback(self, items: List[LocationItem]) -> List[LocationItem]:
         """
         Filter crimes to show most recent crimes from the last 2-5 months.
-        
-        Strategy:
-        1. Keep all crimes from the last 2-5 months (60-150 days)
-        2. Sort by recency (most recent first)
-        3. Return top N most recent crimes (limit to reasonable number)
-        
+
         UK Police API provides monthly aggregated data (typically 1-2 months old),
-        so we fetch data from last 5 months and show the most recent ones.
+        fetch data from last 5 months and show the most recent ones.
         """
         if not items:
             logger.warning("No crime items to filter")
@@ -435,10 +422,8 @@ class LocationDataService:
         logger.info(f"Filtering {len(items)} crimes: keeping most recent from last 2-5 months")
         
         now = datetime.now(timezone.utc)
-        # Keep crimes from last 5 months (up to 150 days old)
-        # UK Police API data is typically 1-2 months old, so we accept crimes up to 5 months old
-        # Then we'll sort and show the most recent ones
-        max_days_ago = 150  # 5 months ago (oldest we'll accept)
+        # Keep crimes from last 5 months 
+        max_days_ago = 150
         
         cutoff_oldest = now - timedelta(days=max_days_ago)
         
@@ -460,8 +445,6 @@ class LocationDataService:
                 parsed_count += 1
                 days_ago = (now - item_date).total_seconds() / 86400
                 
-                # Keep crimes up to 5 months old (0-150 days)
-                # UK Police API data is typically 1-2 months old, so this will include all available data
                 if cutoff_oldest <= item_date <= now:
                     if not item.metadata:
                         item.metadata = {}
@@ -474,10 +457,9 @@ class LocationDataService:
                 logger.debug(f"Could not parse crime date: {item.date} - {e}")
                 continue
         
-        # Sort by recency (most recent first) - this ensures we show the most recent crimes from the 2-5 month window
+        # Sort by most recent first
         filtered.sort(key=lambda x: self._parse_date(x.date) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
         
-        # Limit to top 100 most recent crimes to avoid overwhelming the UI
         max_crimes = 100
         if len(filtered) > max_crimes:
             logger.info(f"Limiting to top {max_crimes} most recent crimes (from {len(filtered)} total in 2-5 month window)")
@@ -510,16 +492,11 @@ class LocationDataService:
     def _filter_news_with_fallback(self, items: List[LocationItem]) -> List[LocationItem]:
         """
         Filter news with cascading fallback:
-        1. Try last 24 hours (most recent)
-        2. If no results, try last 7 days (168 hours)
-        3. If still no results, try last 14 days (336 hours)
-        
-        This ensures users always see news data if available.
+        - Try last 24 hours
         """
         if not items:
             return []
         
-        # Try progressively wider time windows (in hours)
         fallback_windows = [24, 168, 336]  # hours (1 day, 7 days, 14 days)
         
         for hours in fallback_windows:
@@ -611,7 +588,7 @@ class LocationDataService:
                     filtered.append(item)
                 else:
                     filtered_out_count += 1
-                    # Log first few filtered items for debugging
+                    # Log first few filtered items
                     if filtered_out_count <= 3:
                         logger.debug(f"Crime filtered out: date={item.date}, parsed={item_date.date()}, days_ago={days_ago:.1f}, cutoff_days={days}, cutoff_date={crime_past_cutoff.date()}")
             except (ValueError, TypeError) as e:
@@ -626,12 +603,6 @@ class LocationDataService:
     def _filter_realtime_items(self, items: List[LocationItem], item_type: str) -> List[LocationItem]:
         """
         Filter items to show only real-time/recent incidents
-        For events: show upcoming events (within configured hours) or recent past (last N hours)
-        For news: filter by published date (last N hours - configurable)
-        For crimes: filter by crime date (last N days - configurable)
-        
-        Note: UK Police API provides monthly aggregated data, so "real-time" for crimes
-        is limited to the most recent month. For near real-time, use 1-7 days.
         """
         if not items:
             return []
@@ -642,7 +613,7 @@ class LocationDataService:
         
         for item in items:
             if not item.date:
-                # If no date, skip it (except for POIs which we handle separately)
+                # If no date, skip it
                 continue
             
             try:
@@ -672,19 +643,13 @@ class LocationDataService:
                         filtered.append(item)
                     elif len(filtered) < 3:
                         logger.debug(f"Event filtered out: date={item.date}, hours_ago={hours_ago}, hours_ahead={hours_ahead}, outside range [{event_past_cutoff}, {future_cutoff}]")
-                # For crimes: show crimes from last N days (configurable)
-                # UK Police API provides monthly aggregated data
-                # The date represents the month, so we compare month-to-month
+
                 elif item_type == "crime":
                     crime_past_cutoff = now - timedelta(days=self.crime_recent_days)
                     
-                    # For monthly aggregated data, if the crime month is within the cutoff period, include it
-                    # Since crimes are aggregated by month, we check if the month falls within our window
                     if crime_past_cutoff <= item_date <= now:
-                        # Add recency metadata
                         days_ago = (now - item_date).total_seconds() / 86400
                         
-                        # Debug logging for first few items
                         if len(filtered) < 3:
                             logger.debug(f"Crime filtering: date={item.date}, parsed={item_date}, days_ago={days_ago:.1f}, cutoff_days={self.crime_recent_days}, within_range={crime_past_cutoff <= item_date <= now}")
                         
@@ -696,18 +661,16 @@ class LocationDataService:
                     elif len(filtered) < 3:
                         days_ago = (now - item_date).total_seconds() / 86400
                         logger.debug(f"Crime filtered out: {days_ago:.1f} days ago (cutoff: {self.crime_recent_days} days), date={item.date}")
-                # For news: show news from last N hours (configurable)
-                # NewsAPI can provide very recent articles, so hours-based filtering works well
+
                 elif item_type == "news":
                     news_past_cutoff = now - timedelta(hours=self.news_recent_hours)
                     hours_ago = (now - item_date).total_seconds() / 3600
                     
-                    # Debug logging for first few items
+                    # Debug logging
                     if len(filtered) < 3:
                         logger.debug(f"News item date check: date={item.date}, parsed={item_date}, hours_ago={hours_ago:.1f}, cutoff={news_past_cutoff}, within_range={news_past_cutoff <= item_date <= now}")
                     
                     if news_past_cutoff <= item_date <= now:
-                        # Add recency metadata
                         if not item.metadata:
                             item.metadata = {}
                         item.metadata["hours_ago"] = hours_ago
@@ -717,12 +680,10 @@ class LocationDataService:
                         
             except (ValueError, TypeError) as e:
                 logger.warning(f"Could not parse date for {item_type} item {item.id}: {item.date} - {e}")
-                # If date parsing fails, skip the item
                 continue
         
         if item_type == "crime":
             if len(filtered) == 0 and len(items) > 0:
-                # Log sample dates and parsed dates if all filtered out
                 sample_dates = []
                 sample_parsed = []
                 for item in items[:5]:
@@ -739,14 +700,12 @@ class LocationDataService:
                 logger.info(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (last {self.crime_recent_days} days)")
         elif item_type == "news":
             if len(filtered) == 0 and len(items) > 0:
-                # Log sample dates if all filtered out
                 sample_dates = [item.date for item in items[:3] if item.date]
                 logger.warning(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (last {self.news_recent_hours} hours). Sample dates: {sample_dates}")
             else:
                 logger.info(f"Filtered {item_type}: {len(items)} -> {len(filtered)} items (last {self.news_recent_hours} hours)")
         elif item_type == "event":
             if len(filtered) == 0 and len(items) > 0:
-                # Log sample dates if all filtered out
                 sample_dates = []
                 sample_parsed = []
                 for item in items[:5]:
@@ -772,7 +731,7 @@ class LocationDataService:
         def get_sort_key(item: LocationItem) -> float:
             """Get sort key: lower = more recent"""
             if not item.date:
-                return float('inf')  # Items without dates go to end
+                return float('inf')
             
             try:
                 item_date = self._parse_date(item.date)
@@ -780,10 +739,9 @@ class LocationDataService:
                     return float('inf')
                 
                 now = datetime.now(timezone.utc)
-                # For future events, use negative hours (so they come after recent past)
                 if item_date > now:
                     hours_ahead = (item_date - now).total_seconds() / 3600
-                    return -hours_ahead  # Negative for future events
+                    return -hours_ahead # Negative for future events
                 else:
                     hours_ago = (now - item_date).total_seconds() / 3600
                     return hours_ago  # Positive for past events
@@ -797,7 +755,7 @@ class LocationDataService:
         if not date_str:
             return None
         
-        # Common ISO 8601 formats (including UK Police API formats)
+        # Common ISO 8601 formats including UK Police API formats
         formats = [
             "%Y-%m-%dT%H:%M:%S%z",      # 2024-01-15T10:30:00+00:00
             "%Y-%m-%dT%H:%M:%S.%f%z",   # 2024-01-15T10:30:00.123456+00:00
@@ -819,7 +777,6 @@ class LocationDataService:
             except ValueError:
                 continue
         
-        # Try parsing as ISO format with dateutil (if available) - handles more edge cases
         try:
             from dateutil import parser
             parsed = parser.parse(date_str)
@@ -830,7 +787,7 @@ class LocationDataService:
             logger.debug(f"dateutil parser failed for date '{date_str}': {e}")
             pass
         
-        # Last attempt: try to parse as YYYY-MM (month format from UK Police API)
+        # try to parse as YYYY-MM month format from UK Police API
         try:
             if len(date_str) == 7 and date_str[4] == '-':  # YYYY-MM format
                 year, month = map(int, date_str.split('-'))
@@ -845,15 +802,13 @@ class LocationDataService:
     async def _collect_crimes(self, lat: Decimal, lon: Decimal, radius_km: int) -> List[LocationItem]:
         """Collect crime items"""
         try:
-            # Get crimes from last 5 months (we'll filter to show most recent from 2-5 months)
-            # UK Police API provides monthly aggregated data (typically 1-2 months old)
-            # Request 5 months to ensure we have enough data to filter and sort by recency
+
             try:
                 crime_response = await crime_service.get_crimes(
                     lat=lat,
                     lon=lon,
-                    months=5,  # Get 5 months of data to filter most recent from 2-5 months
-                    limit=300  # Get more to filter and sort from
+                    months=5,
+                    limit=300
                 )
             except Exception as e:
                 # If UK Police API fails (404, rate limit, etc.), return empty list instead of crashing
@@ -867,10 +822,7 @@ class LocationDataService:
                 if crime.location and crime.location.latitude and crime.location.longitude:
                     # Generate URL to UK Police website for this location
                     crime_url = f"https://www.police.uk/pu/your-area/?q={crime.location.latitude},{crime.location.longitude}"
-                    
-                    # UK Police API provides monthly aggregated data
-                    # Use the 'month' field (YYYY-MM) to create a proper date for filtering
-                    # Set date to first day of the month for consistent filtering
+
                     crime_date = crime.date
                     if crime.month:
                         try:
@@ -892,12 +844,12 @@ class LocationDataService:
                         subtype=crime.category,
                         distance_km=None,
                         date=crime_date,
-                        url=crime_url,  # Add URL for crime location on UK Police website
+                        url=crime_url,
                         metadata={
                             "crime_type": crime.category,
                             "month": crime.month if hasattr(crime, 'month') else None,
                             "persistent_id": crime.persistent_id if hasattr(crime, 'persistent_id') else None,
-                            "original_date": crime.date  # Keep original for reference
+                            "original_date": crime.date
                         }
                     ))
             
