@@ -4,11 +4,4 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // temporary
-  // server: {
-  //   allowedHosts: [
-  //     // removethisss
-  //     'unjoyfully-uninfinite-luca.ngrok-free.dev'
-  //   ]
-  // }
 })
