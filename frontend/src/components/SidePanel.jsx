@@ -15,7 +15,6 @@ function Chip({ label, value, color = 'info' }) {
 }
 
 export default function SidePanel() {
-  const recent = useMapStore((s) => s.recentSearches);
   const { center } = useMapStore();
   const { data: summary, error: summaryError, isLoading: summaryLoading } = useSummary();
   const { data: scores, error: scoresError, isLoading: scoresLoading } = useScores();
@@ -77,19 +76,6 @@ export default function SidePanel() {
       </div>
 
       <LocationDataList />
-
-      <div className="card">
-        <h3 className="text-sm font-medium mb-2">Recent Searches</h3>
-        <ul className="space-y-1 text-sm">
-          {recent.length === 0 && <li className="text-gray-500">No recent searches yet.</li>}
-          {recent.map((r, idx) => (
-            <li key={idx} className="flex items-center justify-between">
-              <span className="truncate pr-2">{r.query}</span>
-              <span className="text-gray-500">{r.lat.toFixed(3)}, {r.lon.toFixed(3)}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
     </aside>
   );
 }

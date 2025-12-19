@@ -9,6 +9,28 @@ What this service does:
 - Validates data quality
 - Flags data for review
 - Prepares data for ML training
+
+Technologies used:
+- pandas: Data manipulation and cleaning
+- numpy: Numerical operations
+- SQLAlchemy: Database queries
+- Regular expressions: Pattern matching
+- Data validators: Quality checks
+
+Why this is important:
+- ML models need clean, consistent data
+- Dirty data = inaccurate predictions
+- Data quality directly affects model performance
+- Enables reliable feature engineering
+
+How it works:
+1. Load raw data from database
+2. Remove duplicates (by location hash, ID)
+3. Handle missing values (fill, drop, or flag)
+4. Normalize formats (dates, coordinates, text)
+5. Validate data quality
+6. Flag problematic records
+7. Store cleaned data
 """
 
 import logging

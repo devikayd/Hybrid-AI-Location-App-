@@ -69,7 +69,7 @@ export default function LocationDataList() {
   if (!center || !center.lat || !center.lon) {
     return (
       <div className="card">
-        <h3 className="text-sm font-medium mb-2">Location Data</h3>
+        <h3 className="text-sm font-medium mb-2">Results</h3>
         <div className="text-sm text-gray-500">Search for a location to see data</div>
       </div>
     );
@@ -339,32 +339,24 @@ export default function LocationDataList() {
   if (allItems.length === 0) {
     return (
       <div className="card">
-        <h3 className="text-sm font-medium mb-2">Results</h3>
+        <h3 className="text-sm font-medium mb-2">Location Data</h3>
         <div className="text-sm text-gray-500 mb-2">No data available for this location</div>
         <div className="text-xs text-gray-400 space-y-1">
-          <p> Try searching a different location</p>
+          <div>Events: {counts.events}</div>
+          <div>POIs: {counts.pois}</div>
+          <div>News: {counts.news}</div>
+          <div>Crimes: {counts.crimes}</div>
+          <div>Recommendations: {counts.recommendations}</div>
         </div>
       </div>
     );
   }
   return (
     <div className="card">
-      <h3 className="text-sm font-medium mb-2">Results</h3>
+      <h3 className="text-sm font-medium mb-2">Location Data</h3>
       
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-1 mb-3">
-           {counts.recommendations > 0 && (
-          <button
-            onClick={() => setFilterType('recommendations')}
-            className={`text-xs px-2 py-1 rounded transition-colors ${
-              filterType === 'recommendations' 
-                ? 'bg-purple-600 text-white' 
-                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-            }`}
-          >
-            ⭐ Recommendations ({counts.recommendations})
-          </button>
-        )}
         <button
           onClick={() => setFilterType('all')}
           className={`text-xs px-2 py-1 rounded transition-colors ${
@@ -421,6 +413,18 @@ export default function LocationDataList() {
             }`}
           >
             ⚠️ Crimes ({counts.crimes})
+          </button>
+        )}
+        {counts.recommendations > 0 && (
+          <button
+            onClick={() => setFilterType('recommendations')}
+            className={`text-xs px-2 py-1 rounded transition-colors ${
+              filterType === 'recommendations' 
+                ? 'bg-purple-600 text-white' 
+                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+            }`}
+          >
+            ⭐ Recommendations ({counts.recommendations})
           </button>
         )}
       </div>
@@ -500,7 +504,7 @@ export default function LocationDataList() {
                   title={item.is_liked ? 'Unlike' : 'Like'}
                   disabled={interactionMutation.isLoading}
                 >
-                  <Heart className={`w-4 h-4 ${item.is_liked ? 'fill-current' : ''}`} />
+                  <Heart className={`w-4 h-4 ${item.is_liked ? 'fill-red-600' : 'fill-none'}`} />
                 </button>
               </div>
             </div>
@@ -569,7 +573,7 @@ export default function LocationDataList() {
                   title={selectedItem.is_liked ? 'Unlike' : 'Like'}
                   disabled={interactionMutation.isLoading}
                 >
-                  <Heart className={`w-5 h-5 ${selectedItem.is_liked ? 'fill-current' : ''}`} />
+                  <Heart className={`w-5 h-5 ${selectedItem.is_liked ? 'fill-red-600' : 'fill-none'}`} />
                 </button>
                 <button
                   onClick={closeModal}

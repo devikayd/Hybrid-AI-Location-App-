@@ -157,6 +157,70 @@ class UserRecommendationService:
             # Limit results
             recommendations = scored_items[:limit]
             
+            # Fallback: If no recommendations found (all items scored 0 or already interacted with),
+            # return recent items similar to the 0 interactions case
+            if len(recommendations) == 0:
+                # Filter out items user has already interacted with
+                available_items = [item for item in all_items if not (item.is_liked or item.is_saved)]
+                
+                if available_items:
+                    # Sort by date (most recent first)
+                    def get_sort_key(item):
+                        # Priority: events > news > crimes > pois (for items without dates)
+                        type_priority = {"event": 0, "news": 1, "crime": 2, "poi": 3}.get(item.type, 4)
+                        
+                        # Try to get date for sorting
+                        if item.date:
+                            try:
+                                item_date = datetime.fromisoformat(item.date.replace('Z', '+00:00'))
+                                return (-item_date.timestamp(), type_priority)
+                            except:
+                                pass
+                        
+                        # If no date, use hours_ahead or hours_ago from metadata
+                        if item.metadata:
+                            hours_ahead = item.metadata.get("hours_ahead")
+                            hours_ago = item.metadata.get("hours_ago")
+                            if hours_ahead is not None:
+                                return (-hours_ahead, type_priority)
+                            if hours_ago is not None:
+                                return (hours_ago, type_priority)
+                        
+                        return (999999, type_priority)
+                    
+                    sorted_items = sorted(available_items, key=get_sort_key)
+                    recent_items = sorted_items[:min(limit, 5)]  # Return up to limit, but max 5
+                    
+                    # Convert to recommendation items
+                    recommendations = []
+                    for item in recent_items:
+                        relevance_reason = f"Recent {item.type} (no matching preferences found)"
+                        if item.date:
+                            relevance_reason = f"Recent {item.type}"
+                        elif item.metadata:
+                            hours_ahead = item.metadata.get("hours_ahead")
+                            hours_ago = item.metadata.get("hours_ago")
+                            if hours_ahead:
+                                relevance_reason = f"Upcoming {item.type}"
+                            elif hours_ago:
+                                relevance_reason = f"Recent {item.type}"
+                        
+                        recommendations.append(UserRecommendationItem(
+                            id=item.id,
+                            type=item.type,
+                            title=item.title,
+                            description=item.description,
+                            lat=item.lat,
+                            lon=item.lon,
+                            category=item.category,
+                            subtype=item.subtype,
+                            url=item.url,
+                            date=item.date,
+                            metadata=item.metadata,
+                            relevance_reason=relevance_reason,
+                            match_score=0.3  # Lower score than personalized matches
+                        ))
+            
             return UserRecommendationsResponse(
                 user_id=user_id,
                 recommendations=recommendations,

@@ -39,7 +39,7 @@ export default function MapView() {
           </button>
         ))}
       </div>
-      <div className="h-[90vh] relative">
+      <div className="h-[80vh] relative">
         <MapContainer 
           center={[center.lat, center.lon]} 
           zoom={zoom} 
