@@ -40,5 +40,11 @@ optuna==3.5.0
 lightgbm==4.2.0
 catboost==1.2.2
 
+# NLP Enhancements (optional - has lightweight fallbacks)
+# Note: sentence-transformers requires ~500MB+ (includes torch)
+# Uncomment if you have sufficient RAM (8GB+)
+# sentence-transformers==2.2.2
+# bertopic==0.15.0
+
 # LLM
 openai==1.12.0

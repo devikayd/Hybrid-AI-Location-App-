@@ -1,5 +1,12 @@
 """
 NLP service for sentiment analysis, keyword extraction, and NER
+
+Enhanced with:
+- Aspect-based sentiment analysis
+- Text embeddings & semantic similarity
+- Topic modelling
+- Temporal sentiment trends
+- Enhanced entity extraction
 """
 
 import logging
@@ -23,6 +30,21 @@ try:
     SPACY_AVAILABLE = True
 except ImportError:
     SPACY_AVAILABLE = False
+
+# Import NLP enhancements
+try:
+    from app.ml.nlp_enhancements import (
+        nlp_enhancements,
+        AspectSentimentAnalyzer,
+        TextEmbedder,
+        TopicModeler,
+        TemporalSentimentTracker,
+        EnhancedEntityExtractor,
+        check_nlp_dependencies
+    )
+    NLP_ENHANCEMENTS_AVAILABLE = True
+except ImportError:
+    NLP_ENHANCEMENTS_AVAILABLE = False
 
 from app.core.config import settings
 from app.core.exceptions import AppException
@@ -306,6 +328,190 @@ class NLPService:
         except Exception as e:
             logger.warning(f"Text summarization failed: {e}")
             return text[:200] + "..." if len(text) > 200 else text
+
+    # =========================================================================
+    # ENHANCED NLP METHODS (NLP Improvements)
+    # =========================================================================
+
+    async def analyze_aspect_sentiment(self, text: str) -> Dict[str, Any]:
+        """
+        Analyze sentiment for specific aspects (safety, amenities, etc.)
+
+        Args:
+            text: Input text to analyze
+
+        Returns:
+            Dict with sentiment per aspect and overall analysis
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        if NLP_ENHANCEMENTS_AVAILABLE:
+            try:
+                return nlp_enhancements.aspect_analyzer.analyze(text)
+            except Exception as e:
+                logger.warning(f"Aspect sentiment analysis failed: {e}")
+
+        # Fallback to basic sentiment
+        basic_sentiment = await self.analyze_sentiment(text)
+        return {
+            'aspects': {},
+            'overall_sentiment': basic_sentiment.get('compound', 0),
+            'dominant_aspect': None,
+            'aspect_coverage': 0,
+            'fallback': True
+        }
+
+    async def find_similar_texts(
+        self,
+        query: str,
+        candidates: List[str],
+        top_k: int = 5
+    ) -> List[Tuple[int, float]]:
+        """
+        Find texts most similar to query using semantic embeddings.
+
+        Args:
+            query: Query text
+            candidates: List of candidate texts
+            top_k: Number of results
+
+        Returns:
+            List of (index, similarity_score) tuples
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        if NLP_ENHANCEMENTS_AVAILABLE:
+            try:
+                if not nlp_enhancements._initialized:
+                    nlp_enhancements.initialize()
+                return nlp_enhancements.embedder.find_similar(query, candidates, top_k)
+            except Exception as e:
+                logger.warning(f"Semantic similarity failed: {e}")
+
+        # Fallback to simple word overlap
+        results = []
+        query_words = set(query.lower().split())
+        for i, candidate in enumerate(candidates):
+            cand_words = set(candidate.lower().split())
+            if query_words and cand_words:
+                overlap = len(query_words & cand_words) / len(query_words | cand_words)
+                results.append((i, overlap))
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
+
+    async def extract_topics(self, texts: List[str]) -> Dict[str, Any]:
+        """
+        Extract topics from a collection of texts.
+
+        Args:
+            texts: List of text documents
+
+        Returns:
+            Dict with topics and assignments
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        if NLP_ENHANCEMENTS_AVAILABLE:
+            try:
+                if not nlp_enhancements._initialized:
+                    nlp_enhancements.initialize()
+                return nlp_enhancements.topic_modeler.fit_transform(texts)
+            except Exception as e:
+                logger.warning(f"Topic extraction failed: {e}")
+
+        # Fallback: return empty topics
+        return {
+            'topics': [],
+            'assignments': [],
+            'error': 'Topic modelling not available'
+        }
+
+    async def analyze_sentiment_trends(
+        self,
+        articles: List[Dict[str, Any]],
+        date_field: str = 'published_at',
+        text_field: str = 'title'
+    ) -> Dict[str, Any]:
+        """
+        Analyze sentiment trends over time.
+
+        Args:
+            articles: List of article dicts
+            date_field: Name of date field
+            text_field: Name of text field
+
+        Returns:
+            Dict with trend analysis
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        if NLP_ENHANCEMENTS_AVAILABLE:
+            try:
+                return nlp_enhancements.trend_tracker.analyze_trends(
+                    articles, date_field, text_field
+                )
+            except Exception as e:
+                logger.warning(f"Trend analysis failed: {e}")
+
+        # Fallback
+        return {
+            'timeline': [],
+            'trend': {'direction': 'unknown', 'magnitude': 0},
+            'significant_events': [],
+            'error': 'Trend analysis not available'
+        }
+
+    async def analyze_articles(
+        self,
+        articles: List[Dict[str, Any]],
+        text_field: str = 'title',
+        date_field: str = 'published_at'
+    ) -> Dict[str, Any]:
+        """
+        Run comprehensive NLP analysis on articles.
+
+        Includes: topics, trends, aggregate aspect sentiment.
+
+        Args:
+            articles: List of article dicts
+            text_field: Field containing text
+            date_field: Field containing date
+
+        Returns:
+            Comprehensive analysis results
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        if NLP_ENHANCEMENTS_AVAILABLE:
+            try:
+                if not nlp_enhancements._initialized:
+                    nlp_enhancements.initialize()
+                return nlp_enhancements.analyze_articles(
+                    articles, text_field, date_field
+                )
+            except Exception as e:
+                logger.warning(f"Article analysis failed: {e}")
+
+        # Fallback
+        return {
+            'article_count': len(articles),
+            'error': 'Enhanced analysis not available'
+        }
+
+    def get_enhancement_status(self) -> Dict[str, Any]:
+        """Get status of NLP enhancements."""
+        if NLP_ENHANCEMENTS_AVAILABLE:
+            return nlp_enhancements.get_status()
+        return {
+            'initialized': False,
+            'available': False,
+            'message': 'NLP enhancements not installed'
+        }
 
 
 # Global NLP service instance
