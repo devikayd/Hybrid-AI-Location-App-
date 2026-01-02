@@ -27,6 +27,54 @@ function RecenterOnChange({ lat, lon, zoom }) {
   return null;
 }
 
+// Handle chat-triggered map actions (flyTo, fitBounds)
+function MapActionHandler() {
+  const map = useMap();
+  const { flyToTarget, fitBoundsTarget, clearMapActions } = useMapStore();
+
+  // Handle flyTo action
+  useEffect(() => {
+    if (flyToTarget) {
+      const { lat, lng, zoom: targetZoom, animate = true } = flyToTarget;
+      const finalZoom = targetZoom || map.getZoom();
+
+      if (animate) {
+        map.flyTo([lat, lng], finalZoom, { duration: 1 });
+      } else {
+        map.setView([lat, lng], finalZoom);
+      }
+
+      clearMapActions();
+    }
+  }, [flyToTarget, map, clearMapActions]);
+
+  // Handle fitBounds action
+  useEffect(() => {
+    if (fitBoundsTarget) {
+      const { bbox, padding = 50, maxZoom } = fitBoundsTarget;
+      // bbox is [west, south, east, north]
+      const bounds = [
+        [bbox[1], bbox[0]], // [south, west]
+        [bbox[3], bbox[2]], // [north, east]
+      ];
+
+      const options = {
+        padding: [padding, padding],
+        animate: true,
+      };
+
+      if (maxZoom) {
+        options.maxZoom = maxZoom;
+      }
+
+      map.fitBounds(bounds, options);
+      clearMapActions();
+    }
+  }, [fitBoundsTarget, map, clearMapActions]);
+
+  return null;
+}
+
 export default function MapView() {
   const { center, zoom, layers, toggleLayer, showRecentSearches } = useMapStore();
 
@@ -83,6 +131,7 @@ export default function MapView() {
           {layers.pois && <POIsLayer />}
 
           <RecenterOnChange lat={center.lat} lon={center.lon} zoom={zoom} />
+          <MapActionHandler />
         </MapContainer>
       </div>
     </div>

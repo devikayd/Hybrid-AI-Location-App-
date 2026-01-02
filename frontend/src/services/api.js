@@ -95,8 +95,31 @@ export const getUserRecommendations = async (userId, params) => {
   return res.data;
 };
 
-
-
-
+// Chat endpoint
+export const sendChatMessage = async ({
+  message,
+  mapCenter,
+  bbox,
+  zoom,
+  timeRange = null,
+  filters = null,
+  conversationId = null,
+}) => {
+  const payload = {
+    message,
+    context: {
+      map: {
+        center: { lat: mapCenter.lat, lng: mapCenter.lng },
+        bbox,
+        zoom,
+      },
+      ...(timeRange && { time: timeRange }),
+      ...(filters && { filters }),
+    },
+    ...(conversationId && { conversation_id: conversationId }),
+  };
+  const res = await api.post('/v1/chat', payload, { timeout: 60000 });
+  return res.data;
+};
 
 

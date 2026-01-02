@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { useLocationData } from '../../hooks/useLocationData';
+import { useMapStore } from '../../stores/mapStore';
 
 function svgToBase64(svg) {
   return btoa(unescape(encodeURIComponent(svg)));
@@ -27,10 +28,34 @@ function createEmojiPinIcon(emoji, fill = '#2563eb') {
 }
 
 const newsIcon = createEmojiPinIcon('📰', '#eab308');
+const newsIconHighlighted = createEmojiPinIcon('📰', '#3b82f6');
+
+function HighlightableMarker({ position, icon, isHighlighted, children, ...props }) {
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (markerRef.current) {
+      const iconElement = markerRef.current.getElement();
+      if (iconElement) {
+        if (isHighlighted) {
+          iconElement.classList.add('highlighted');
+        } else {
+          iconElement.classList.remove('highlighted');
+        }
+      }
+    }
+  }, [isHighlighted]);
+
+  return (
+    <Marker ref={markerRef} position={position} icon={icon} {...props}>
+      {children}
+    </Marker>
+  );
+}
 
 export default function NewsLayer() {
-  // Use shared location data hook
   const { data, isLoading } = useLocationData();
+  const highlightedItems = useMapStore((state) => state.highlightedItems);
 
   if (isLoading || !data?.news?.length) return null;
 
@@ -40,8 +65,17 @@ export default function NewsLayer() {
         const lat = Number(a?.lat);
         const lon = Number(a?.lon);
         if (!lat || !lon) return null;
+
+        const itemId = `news_${a.id || idx}`;
+        const isHighlighted = highlightedItems.includes(itemId) || highlightedItems.includes(a.id);
+
         return (
-          <Marker key={a.id || idx} position={[lat, lon]} icon={newsIcon}>
+          <HighlightableMarker
+            key={a.id || idx}
+            position={[lat, lon]}
+            icon={isHighlighted ? newsIconHighlighted : newsIcon}
+            isHighlighted={isHighlighted}
+          >
             <Popup>
               <div className="text-sm">
                 <div className="font-medium">{a.title || 'News Article'}</div>
@@ -53,7 +87,7 @@ export default function NewsLayer() {
                 )}
               </div>
             </Popup>
-          </Marker>
+          </HighlightableMarker>
         );
       })}
     </>

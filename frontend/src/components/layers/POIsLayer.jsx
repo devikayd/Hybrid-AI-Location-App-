@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { useLocationData } from '../../hooks/useLocationData';
+import { useMapStore } from '../../stores/mapStore';
 
 function svgToBase64(svg) {
   return btoa(unescape(encodeURIComponent(svg)));
@@ -90,9 +91,34 @@ function getPOIIconConfig(poi) {
   return { emoji: '📍', color: '#16a34a' };
 }
 
+const HIGHLIGHT_COLOR = '#3b82f6';
+
+function HighlightableMarker({ position, icon, isHighlighted, children, ...props }) {
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (markerRef.current) {
+      const iconElement = markerRef.current.getElement();
+      if (iconElement) {
+        if (isHighlighted) {
+          iconElement.classList.add('highlighted');
+        } else {
+          iconElement.classList.remove('highlighted');
+        }
+      }
+    }
+  }, [isHighlighted]);
+
+  return (
+    <Marker ref={markerRef} position={position} icon={icon} {...props}>
+      {children}
+    </Marker>
+  );
+}
+
 export default function POIsLayer() {
-  // Use shared location data hook (prevents duplicate API calls)
   const { data, isLoading } = useLocationData();
+  const highlightedItems = useMapStore((state) => state.highlightedItems);
 
   if (isLoading || !data?.pois?.length) return null;
 
@@ -102,13 +128,25 @@ export default function POIsLayer() {
         const lat = Number(p?.lat);
         const lon = Number(p?.lon);
         if (!lat || !lon) return null;
-        
+
+        const itemId = `poi_${p.id}`;
+        const isHighlighted = highlightedItems.includes(itemId) || highlightedItems.includes(p.id);
+
         // Get icon configuration based on POI category
         const iconConfig = getPOIIconConfig(p);
-        const poiIcon = createEmojiPinIcon(iconConfig.emoji, iconConfig.color);
-        
+        // Use highlight color if highlighted, otherwise use category color
+        const poiIcon = createEmojiPinIcon(
+          iconConfig.emoji,
+          isHighlighted ? HIGHLIGHT_COLOR : iconConfig.color
+        );
+
         return (
-          <Marker key={p.id} position={[lat, lon]} icon={poiIcon}>
+          <HighlightableMarker
+            key={p.id}
+            position={[lat, lon]}
+            icon={poiIcon}
+            isHighlighted={isHighlighted}
+          >
             <Popup>
               <div className="text-sm">
                 <div className="font-medium">{p.title || p.tags?.name || p.type}</div>
@@ -121,7 +159,7 @@ export default function POIsLayer() {
                 )}
               </div>
             </Popup>
-          </Marker>
+          </HighlightableMarker>
         );
       })}
     </>

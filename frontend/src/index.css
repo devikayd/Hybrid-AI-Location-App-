@@ -81,3 +81,24 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400;
 }
+
+/* Chat-triggered marker highlighting */
+@keyframes marker-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(59, 130, 246, 0));
+  }
+  50% {
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.8));
+  }
+}
+
+.leaflet-marker-icon.highlighted {
+  animation: marker-pulse 1.2s ease-in-out infinite;
+  z-index: 1000 !important;
+}
+
+.leaflet-marker-icon.highlighted-glow {
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.9)) drop-shadow(0 0 12px rgba(59, 130, 246, 0.5));
+}

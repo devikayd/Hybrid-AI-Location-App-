@@ -4,6 +4,7 @@ import SearchBar from './components/SearchBar'
 import MapView from './components/MapView'
 import SidePanel from './components/SidePanel'
 import Footer from './components/Footer'
+import ChatPanel from './components/ChatPanel'
 import { useMapStore } from './stores/mapStore'
 
 function App() {
@@ -28,6 +29,9 @@ function App() {
       </main>
 
       <Footer />
+
+      {/* Chat Panel - floating bottom-right */}
+      <ChatPanel />
     </div>
   )
 }

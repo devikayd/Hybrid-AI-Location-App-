@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { useLocationData } from '../../hooks/useLocationData';
+import { useMapStore } from '../../stores/mapStore';
 
 function svgToBase64(svg) {
   return btoa(unescape(encodeURIComponent(svg)));
@@ -27,10 +28,35 @@ function createEmojiPinIcon(emoji, fill = '#2563eb') {
 }
 
 const crimeIcon = createEmojiPinIcon('👮', '#dc2626');
+const crimeIconHighlighted = createEmojiPinIcon('👮', '#3b82f6'); // Blue for highlighted
+
+// Wrapper to apply highlight class to marker
+function HighlightableMarker({ position, icon, isHighlighted, children, ...props }) {
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (markerRef.current) {
+      const iconElement = markerRef.current.getElement();
+      if (iconElement) {
+        if (isHighlighted) {
+          iconElement.classList.add('highlighted');
+        } else {
+          iconElement.classList.remove('highlighted');
+        }
+      }
+    }
+  }, [isHighlighted]);
+
+  return (
+    <Marker ref={markerRef} position={position} icon={icon} {...props}>
+      {children}
+    </Marker>
+  );
+}
 
 export default function CrimesLayer() {
-  // Use shared location data hook
   const { data, isLoading } = useLocationData();
+  const highlightedItems = useMapStore((state) => state.highlightedItems);
 
   if (isLoading || !data?.crimes?.length) return null;
 
@@ -40,8 +66,17 @@ export default function CrimesLayer() {
         const lat = Number(c?.lat);
         const lon = Number(c?.lon);
         if (!lat || !lon) return null;
+
+        const itemId = `crime_${c.id}`;
+        const isHighlighted = highlightedItems.includes(itemId) || highlightedItems.includes(c.id);
+
         return (
-          <Marker key={c.id} position={[lat, lon]} icon={crimeIcon}>
+          <HighlightableMarker
+            key={c.id}
+            position={[lat, lon]}
+            icon={isHighlighted ? crimeIconHighlighted : crimeIcon}
+            isHighlighted={isHighlighted}
+          >
             <Popup>
               <div className="text-sm">
                 <div className="font-medium">{c.title || c.category}</div>
@@ -49,7 +84,7 @@ export default function CrimesLayer() {
                 {c.date && <div className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</div>}
               </div>
             </Popup>
-          </Marker>
+          </HighlightableMarker>
         );
       })}
     </>
