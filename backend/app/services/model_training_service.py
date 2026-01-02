@@ -1,5 +1,12 @@
 """
 Model Training Service
+
+Supports two training modes:
+1. Standard training (XGBoost with fixed parameters)
+2. Enhanced training with:
+   - Spatial Cross-Validation (honest evaluation)
+   - Hyperparameter Tuning (Optuna)
+   - Model Ensemble (XGBoost + LightGBM + CatBoost)
 """
 
 import logging
@@ -21,6 +28,21 @@ except ImportError:
     XGBOOST_AVAILABLE = False
     logger = logging.getLogger(__name__)
     logger.warning("XGBoost or scikit-learn not available. Install: pip install xgboost scikit-learn joblib")
+
+# Import scoring enhancements
+try:
+    from app.ml.scoring_enhancements import (
+        train_with_enhancements,
+        SpatialBlockCV,
+        HyperparameterTuner,
+        ScoringEnsemble,
+        compare_cv_methods,
+        check_available_packages,
+        get_improvement_status
+    )
+    ENHANCEMENTS_AVAILABLE = True
+except ImportError:
+    ENHANCEMENTS_AVAILABLE = False
 
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -411,10 +433,313 @@ class ModelTrainingService:
         model_files = list(self.models_dir.glob(f"{model_type}_model_*.pkl"))
         if not model_files:
             return None
-        
+
         # Sort by modification time (newest first)
         model_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
         return str(model_files[0])
+
+    # =========================================================================
+    # ENHANCED TRAINING METHODS (Scoring Model Improvements)
+    # =========================================================================
+
+    async def train_enhanced_safety_model(
+        self,
+        use_spatial_cv: bool = True,
+        use_tuning: bool = True,
+        use_ensemble: bool = True,
+        n_tuning_trials: int = 50,
+        min_samples: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Train safety model with enhancements:
+        - Spatial Cross-Validation (prevents spatial data leakage)
+        - Hyperparameter Tuning (Optuna Bayesian optimization)
+        - Model Ensemble (XGBoost + LightGBM + CatBoost)
+
+        Args:
+            use_spatial_cv: Use spatial CV for honest evaluation
+            use_tuning: Use Optuna for hyperparameter tuning
+            use_ensemble: Use ensemble instead of single model
+            n_tuning_trials: Number of Optuna trials
+            min_samples: Minimum training samples required
+
+        Returns:
+            Dict with model, metrics, and enhancement details
+        """
+        if not ENHANCEMENTS_AVAILABLE:
+            raise RuntimeError(
+                "Scoring enhancements not available. "
+                "Ensure scoring_enhancements.py exists and dependencies are installed."
+            )
+
+        try:
+            logger.info("Starting ENHANCED safety model training...")
+
+            # Load training data
+            db = next(get_db())
+            training_records = db.query(TrainingData).filter(
+                TrainingData.model_type == "safety"
+            ).all()
+            db.close()
+
+            if len(training_records) < min_samples:
+                raise ValueError(
+                    f"Insufficient training data: {len(training_records)} samples. "
+                    f"Minimum required: {min_samples}."
+                )
+
+            logger.info(f"Loaded {len(training_records)} training samples")
+
+            # Prepare features and labels
+            X, y, feature_names = self._prepare_training_data(
+                training_records,
+                label_field="safety_score"
+            )
+
+            if X.shape[0] < min_samples:
+                raise ValueError(f"Insufficient valid samples: {X.shape[0]}")
+
+            logger.info(f"Prepared {X.shape[0]} samples with {X.shape[1]} features")
+
+            # Train with enhancements
+            results = train_with_enhancements(
+                X=X,
+                y=y,
+                use_spatial_cv=use_spatial_cv,
+                use_tuning=use_tuning,
+                use_ensemble=use_ensemble,
+                n_tuning_trials=n_tuning_trials
+            )
+
+            # Save model
+            model_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_path = self.models_dir / f"safety_model_enhanced_{model_version}.pkl"
+
+            joblib.dump(results['model'], model_path)
+            logger.info(f"Enhanced model saved to {model_path}")
+
+            # Save feature names
+            feature_names_path = self.models_dir / f"safety_features_enhanced_{model_version}.json"
+            with open(feature_names_path, 'w') as f:
+                json.dump(feature_names, f)
+
+            # Save enhancement metadata
+            metadata_path = self.models_dir / f"safety_metadata_enhanced_{model_version}.json"
+            metadata = {
+                'model_type': results['model_type'],
+                'use_spatial_cv': use_spatial_cv,
+                'use_tuning': use_tuning,
+                'use_ensemble': use_ensemble,
+                'n_tuning_trials': n_tuning_trials,
+                'metrics': results['metrics'],
+                'cv_comparison': results['cv_comparison'],
+                'ensemble_weights': results.get('ensemble_weights'),
+                'available_models': results.get('available_models'),
+                'timestamp': results['timestamp']
+            }
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+
+            # Update statistics
+            self.stats['safety_model_trained'] = True
+            self.stats['safety_model_version'] = model_version
+            self.stats['safety_model_metrics'] = results['metrics']
+            self.stats['last_training_date'] = datetime.now().isoformat()
+
+            return {
+                'success': True,
+                'model_type': 'safety',
+                'training_mode': 'enhanced',
+                'model_version': model_version,
+                'model_path': str(model_path),
+                'feature_names': feature_names,
+                'metrics': results['metrics'],
+                'cv_comparison': results['cv_comparison'],
+                'ensemble_weights': results.get('ensemble_weights'),
+                'available_models': results.get('available_models'),
+                'tuning_results': results.get('tuning_results'),
+                'training_samples': X.shape[0],
+                'enhancements_used': {
+                    'spatial_cv': use_spatial_cv,
+                    'hyperparameter_tuning': use_tuning,
+                    'model_ensemble': use_ensemble
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Enhanced safety model training failed: {e}", exc_info=True)
+            raise
+
+    async def train_enhanced_popularity_model(
+        self,
+        use_spatial_cv: bool = True,
+        use_tuning: bool = True,
+        use_ensemble: bool = True,
+        n_tuning_trials: int = 50,
+        min_samples: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Train popularity model with enhancements.
+
+        Same enhancements as train_enhanced_safety_model.
+        """
+        if not ENHANCEMENTS_AVAILABLE:
+            raise RuntimeError("Scoring enhancements not available.")
+
+        try:
+            logger.info("Starting ENHANCED popularity model training...")
+
+            # Load training data
+            db = next(get_db())
+            training_records = db.query(TrainingData).filter(
+                TrainingData.model_type == "popularity"
+            ).all()
+            db.close()
+
+            if len(training_records) < min_samples:
+                raise ValueError(
+                    f"Insufficient training data: {len(training_records)} samples. "
+                    f"Minimum required: {min_samples}."
+                )
+
+            logger.info(f"Loaded {len(training_records)} training samples")
+
+            # Prepare features and labels
+            X, y, feature_names = self._prepare_training_data(
+                training_records,
+                label_field="popularity_score"
+            )
+
+            if X.shape[0] < min_samples:
+                raise ValueError(f"Insufficient valid samples: {X.shape[0]}")
+
+            logger.info(f"Prepared {X.shape[0]} samples with {X.shape[1]} features")
+
+            # Train with enhancements
+            results = train_with_enhancements(
+                X=X,
+                y=y,
+                use_spatial_cv=use_spatial_cv,
+                use_tuning=use_tuning,
+                use_ensemble=use_ensemble,
+                n_tuning_trials=n_tuning_trials
+            )
+
+            # Save model
+            model_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_path = self.models_dir / f"popularity_model_enhanced_{model_version}.pkl"
+
+            joblib.dump(results['model'], model_path)
+            logger.info(f"Enhanced model saved to {model_path}")
+
+            # Save feature names
+            feature_names_path = self.models_dir / f"popularity_features_enhanced_{model_version}.json"
+            with open(feature_names_path, 'w') as f:
+                json.dump(feature_names, f)
+
+            # Save enhancement metadata
+            metadata_path = self.models_dir / f"popularity_metadata_enhanced_{model_version}.json"
+            metadata = {
+                'model_type': results['model_type'],
+                'use_spatial_cv': use_spatial_cv,
+                'use_tuning': use_tuning,
+                'use_ensemble': use_ensemble,
+                'n_tuning_trials': n_tuning_trials,
+                'metrics': results['metrics'],
+                'cv_comparison': results['cv_comparison'],
+                'ensemble_weights': results.get('ensemble_weights'),
+                'available_models': results.get('available_models'),
+                'timestamp': results['timestamp']
+            }
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+
+            # Update statistics
+            self.stats['popularity_model_trained'] = True
+            self.stats['popularity_model_version'] = model_version
+            self.stats['popularity_model_metrics'] = results['metrics']
+            self.stats['last_training_date'] = datetime.now().isoformat()
+
+            return {
+                'success': True,
+                'model_type': 'popularity',
+                'training_mode': 'enhanced',
+                'model_version': model_version,
+                'model_path': str(model_path),
+                'feature_names': feature_names,
+                'metrics': results['metrics'],
+                'cv_comparison': results['cv_comparison'],
+                'ensemble_weights': results.get('ensemble_weights'),
+                'available_models': results.get('available_models'),
+                'tuning_results': results.get('tuning_results'),
+                'training_samples': X.shape[0],
+                'enhancements_used': {
+                    'spatial_cv': use_spatial_cv,
+                    'hyperparameter_tuning': use_tuning,
+                    'model_ensemble': use_ensemble
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Enhanced popularity model training failed: {e}", exc_info=True)
+            raise
+
+    async def train_all_enhanced_models(
+        self,
+        use_spatial_cv: bool = True,
+        use_tuning: bool = True,
+        use_ensemble: bool = True,
+        n_tuning_trials: int = 50,
+        min_samples: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Train both safety and popularity models with enhancements.
+        """
+        results = {}
+
+        try:
+            # Train enhanced safety model
+            try:
+                results['safety'] = await self.train_enhanced_safety_model(
+                    use_spatial_cv=use_spatial_cv,
+                    use_tuning=use_tuning,
+                    use_ensemble=use_ensemble,
+                    n_tuning_trials=n_tuning_trials,
+                    min_samples=min_samples
+                )
+            except Exception as e:
+                results['safety'] = {'success': False, 'error': str(e)}
+
+            # Train enhanced popularity model
+            try:
+                results['popularity'] = await self.train_enhanced_popularity_model(
+                    use_spatial_cv=use_spatial_cv,
+                    use_tuning=use_tuning,
+                    use_ensemble=use_ensemble,
+                    n_tuning_trials=n_tuning_trials,
+                    min_samples=min_samples
+                )
+            except Exception as e:
+                results['popularity'] = {'success': False, 'error': str(e)}
+
+            return {
+                'success': results['safety'].get('success', False) or results['popularity'].get('success', False),
+                'training_mode': 'enhanced',
+                'results': results
+            }
+
+        except Exception as e:
+            logger.error(f"Enhanced model training failed: {e}", exc_info=True)
+            raise
+
+    def get_enhancement_status(self) -> Dict[str, Any]:
+        """Get status of available scoring enhancements."""
+        if ENHANCEMENTS_AVAILABLE:
+            return get_improvement_status()
+        return {
+            'available': False,
+            'message': 'Scoring enhancements not installed. Check dependencies.'
+        }
 
 
 # Global service instance
