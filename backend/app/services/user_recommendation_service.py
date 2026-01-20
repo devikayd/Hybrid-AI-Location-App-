@@ -1,9 +1,15 @@
 """
 User-Based Recommendation Service - Recommendations based on user interactions
+
+Enhanced with:
+- Hybrid recommendations (content + collaborative + implicit feedback)
+- Diversity-aware re-ranking (MMR)
+- Contextual bandits for cold-start exploration
+- Implicit feedback weighting (recency decay)
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from collections import Counter
@@ -15,12 +21,34 @@ from app.services.location_data_service import location_data_service
 from app.services.user_interaction_service import user_interaction_service
 from app.core.exceptions import AppException
 
+# Import recommendation enhancements
+try:
+    from app.ml.recommendation_enhancements import (
+        recommendation_enhancements,
+        HybridRecommender,
+        ImplicitFeedbackWeighter,
+        DiversityReranker,
+        get_recommendation_status
+    )
+    ENHANCEMENTS_AVAILABLE = True
+except ImportError:
+    ENHANCEMENTS_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
 class UserRecommendationService:
     """Service for generating recommendations based on user interactions"""
-    
+
+    def __init__(self):
+        self.use_enhancements = ENHANCEMENTS_AVAILABLE
+        self._collab_fitted = False
+
+        if self.use_enhancements:
+            logger.info("Recommendation enhancements loaded successfully")
+        else:
+            logger.warning("Recommendation enhancements not available, using basic content-based filtering")
+
     async def get_recommendations(
         self,
         user_id: str,
@@ -112,44 +140,29 @@ class UserRecommendationService:
                     total_recommendations=len(recommendations)
                 )
             
-            # Score items based on user preferences
-            scored_items = []
-            
             # Combine all items
             all_items = location_data.events + location_data.pois + location_data.news + location_data.crimes
-            
-            for item in all_items:
-                # Skip items user has already interacted with
-                if item.is_liked or item.is_saved:
-                    continue
-                
-                # Calculate match score based on user preferences
-                match_score = self._calculate_match_score(item, user_prefs)
-                
-                if match_score > 0:
-                    relevance_reason = self._generate_relevance_reason(item, user_prefs, match_score)
-                    
-                    scored_items.append(UserRecommendationItem(
-                        id=item.id,
-                        type=item.type,
-                        title=item.title,
-                        description=item.description,
-                        lat=item.lat,
-                        lon=item.lon,
-                        category=item.category,
-                        subtype=item.subtype,
-                        url=item.url,
-                        date=item.date,
-                        metadata=item.metadata,
-                        relevance_reason=relevance_reason,
-                        match_score=match_score
-                    ))
-            
-            # Sort by match score (highest first)
-            scored_items.sort(key=lambda x: x.match_score, reverse=True)
-            
-            # Limit results
-            recommendations = scored_items[:limit]
+
+            # Filter out already interacted items
+            candidate_items = [item for item in all_items if not (item.is_liked or item.is_saved)]
+
+            if not candidate_items:
+                return UserRecommendationsResponse(
+                    user_id=user_id,
+                    recommendations=[],
+                    based_on_interactions=user_prefs["total_interactions"],
+                    total_recommendations=0
+                )
+
+            # Use enhanced hybrid recommendations if available
+            if self.use_enhancements:
+                recommendations = await self._get_hybrid_recommendations(
+                    user_id, candidate_items, user_prefs, limit, db
+                )
+            else:
+                recommendations = self._get_content_based_recommendations(
+                    candidate_items, user_prefs, limit
+                )
             
             # Fallback: If no recommendations found
             # return recent items similar to the 0 interactions
@@ -285,8 +298,179 @@ class UserRecommendationService:
         
         if not reasons:
             return "Based on your interaction patterns"
-        
+
         return "; ".join(reasons)
+
+    def _get_content_based_recommendations(
+        self,
+        candidate_items: List,
+        user_prefs: dict,
+        limit: int
+    ) -> List[UserRecommendationItem]:
+        """
+        Original content-based filtering (fallback method).
+        """
+        scored_items = []
+
+        for item in candidate_items:
+            match_score = self._calculate_match_score(item, user_prefs)
+
+            if match_score > 0:
+                relevance_reason = self._generate_relevance_reason(item, user_prefs, match_score)
+
+                scored_items.append(UserRecommendationItem(
+                    id=item.id,
+                    type=item.type,
+                    title=item.title,
+                    description=item.description,
+                    lat=item.lat,
+                    lon=item.lon,
+                    category=item.category,
+                    subtype=item.subtype,
+                    url=item.url,
+                    date=item.date,
+                    metadata=item.metadata,
+                    relevance_reason=relevance_reason,
+                    match_score=match_score
+                ))
+
+        # Sort by match score (highest first)
+        scored_items.sort(key=lambda x: x.match_score, reverse=True)
+
+        return scored_items[:limit]
+
+    async def _get_hybrid_recommendations(
+        self,
+        user_id: str,
+        candidate_items: List,
+        user_prefs: dict,
+        limit: int,
+        db: Session
+    ) -> List[UserRecommendationItem]:
+        """
+        Enhanced hybrid recommendation combining content, collaborative, and implicit feedback.
+        """
+        try:
+            # Convert items to dicts for hybrid recommender
+            item_dicts = self._convert_items_to_dicts(candidate_items)
+
+            # Calculate content-based scores
+            content_scores = {}
+            for item in candidate_items:
+                content_scores[item.id] = self._calculate_match_score(item, user_prefs)
+
+            # Get user's interaction history for implicit feedback
+            user_interactions = await self._get_user_interactions(user_id, db)
+
+            # Use hybrid recommender
+            recommended_dicts = recommendation_enhancements.recommend(
+                user_id=user_id,
+                candidate_items=item_dicts,
+                content_scores=content_scores,
+                user_interactions=user_interactions,
+                n_recommendations=limit,
+                apply_diversity=True,
+                apply_exploration=user_prefs["total_interactions"] < 10
+            )
+
+            # Convert back to UserRecommendationItem
+            # Create lookup map for original items
+            item_lookup = {item.id: item for item in candidate_items}
+            recommendations = []
+
+            for rec_dict in recommended_dicts:
+                item_id = rec_dict.get('id')
+                original_item = item_lookup.get(item_id)
+
+                if not original_item:
+                    continue
+
+                hybrid_score = rec_dict.get('_hybrid_score', 0.0)
+                explored = rec_dict.get('_explored', False)
+
+                # Generate relevance reason with enhancement info
+                base_reason = self._generate_relevance_reason(
+                    original_item, user_prefs, hybrid_score
+                )
+
+                if explored:
+                    relevance_reason = f"Exploring new content: {base_reason}"
+                else:
+                    relevance_reason = f"Personalized for you: {base_reason}"
+
+                recommendations.append(UserRecommendationItem(
+                    id=original_item.id,
+                    type=original_item.type,
+                    title=original_item.title,
+                    description=original_item.description,
+                    lat=original_item.lat,
+                    lon=original_item.lon,
+                    category=original_item.category,
+                    subtype=original_item.subtype,
+                    url=original_item.url,
+                    date=original_item.date,
+                    metadata=original_item.metadata,
+                    relevance_reason=relevance_reason,
+                    match_score=hybrid_score
+                ))
+
+            return recommendations
+
+        except Exception as e:
+            logger.warning(f"Hybrid recommendation failed, falling back to content-based: {e}")
+            return self._get_content_based_recommendations(candidate_items, user_prefs, limit)
+
+    def _convert_items_to_dicts(self, items: List) -> List[Dict[str, Any]]:
+        """Convert location items to dicts for hybrid recommender."""
+        return [
+            {
+                'id': item.id,
+                'type': item.type,
+                'category': item.category,
+                'subtype': item.subtype,
+                'source': item.metadata.get('source') if item.metadata else None,
+                'title': item.title,
+                'description': item.description
+            }
+            for item in items
+        ]
+
+    async def _get_user_interactions(self, user_id: str, db: Session) -> List[Dict[str, Any]]:
+        """Get user's interaction history for implicit feedback weighting."""
+        try:
+            interactions = await user_interaction_service.get_user_interactions(user_id, db)
+
+            return [
+                {
+                    'item_id': interaction.item_id,
+                    'interaction_type': interaction.interaction_type,
+                    'created_at': interaction.created_at
+                }
+                for interaction in interactions
+            ]
+        except Exception as e:
+            logger.warning(f"Failed to get user interactions: {e}")
+            return []
+
+    async def update_feedback(self, item_id: str, positive: bool):
+        """
+        Update contextual bandit with user feedback for explore-exploit learning.
+
+        Args:
+            item_id: Item that received feedback
+            positive: Whether feedback was positive (like/save)
+        """
+        if self.use_enhancements:
+            recommendation_enhancements.update_feedback(item_id, positive)
+
+    def get_enhancement_status(self) -> Dict[str, Any]:
+        """Get status of recommendation enhancements."""
+        if self.use_enhancements:
+            return get_recommendation_status()
+        return {
+            'available': False,
+            'message': 'Recommendation enhancements not loaded'
+        }
 
 
 # Service instance

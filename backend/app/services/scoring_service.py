@@ -183,7 +183,7 @@ class ScoringService:
     async def _collect_features(self, lat: Decimal, lon: Decimal, radius_km: int) -> Dict[str, Any]:
         """Collect features for scoring"""
         features = {}
-        
+
         # Collect data concurrently
         tasks = [
             self._collect_crime_features(lat, lon, radius_km),
@@ -191,16 +191,164 @@ class ScoringService:
             self._collect_news_features(lat, lon, radius_km),
             self._collect_poi_features(lat, lon, radius_km)
         ]
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         for result in results:
             if isinstance(result, dict):
                 features.update(result)
             elif isinstance(result, Exception):
                 logger.warning(f"Feature collection failed: {result}")
-        
+
+        # Add temporal features (time-based patterns)
+        temporal_features = self._collect_temporal_features()
+        features.update(temporal_features)
+
+        # Add spatial features (location context)
+        spatial_features = self._collect_spatial_features(float(lat), float(lon))
+        features.update(spatial_features)
+
         return features
+
+    def _collect_temporal_features(self) -> Dict[str, Any]:
+        """
+        Collect temporal features based on current time.
+
+        These features capture time-based patterns:
+        - Safety varies by time of day (night vs day)
+        - Popularity varies by day of week (weekend vs weekday)
+        - Seasonal patterns affect both scores
+        """
+        now = datetime.now()
+
+        # Hour of day (0-23)
+        hour = now.hour
+
+        # Day of week (0=Monday, 6=Sunday)
+        day_of_week = now.weekday()
+
+        # Binary features
+        is_weekend = 1 if day_of_week >= 5 else 0
+        is_night = 1 if hour < 6 or hour >= 22 else 0
+        is_evening = 1 if 18 <= hour < 22 else 0
+        is_morning_rush = 1 if 7 <= hour <= 9 else 0
+        is_evening_rush = 1 if 17 <= hour <= 19 else 0
+
+        # Time period encoding (cyclical)
+        # Using sin/cos for cyclical time features
+        hour_sin = math.sin(2 * math.pi * hour / 24)
+        hour_cos = math.cos(2 * math.pi * hour / 24)
+        day_sin = math.sin(2 * math.pi * day_of_week / 7)
+        day_cos = math.cos(2 * math.pi * day_of_week / 7)
+
+        # Month for seasonal patterns
+        month = now.month
+        month_sin = math.sin(2 * math.pi * month / 12)
+        month_cos = math.cos(2 * math.pi * month / 12)
+
+        return {
+            "hour_of_day": hour,
+            "day_of_week": day_of_week,
+            "is_weekend": is_weekend,
+            "is_night": is_night,
+            "is_evening": is_evening,
+            "is_morning_rush": is_morning_rush,
+            "is_evening_rush": is_evening_rush,
+            "hour_sin": hour_sin,
+            "hour_cos": hour_cos,
+            "day_sin": day_sin,
+            "day_cos": day_cos,
+            "month_sin": month_sin,
+            "month_cos": month_cos
+        }
+
+    def _collect_spatial_features(self, lat: float, lon: float) -> Dict[str, Any]:
+        """
+        Collect spatial features based on location.
+
+        These features capture location context:
+        - Distance to major city centers
+        - Urban vs rural indicators
+        - Geographic region characteristics
+        """
+        # Major UK city centers (lat, lon)
+        uk_cities = {
+            "london": (51.5074, -0.1278),
+            "manchester": (53.4808, -2.2426),
+            "birmingham": (52.4862, -1.8904),
+            "leeds": (53.8008, -1.5491),
+            "glasgow": (55.8642, -4.2518),
+            "liverpool": (53.4084, -2.9916),
+            "edinburgh": (55.9533, -3.1883),
+            "bristol": (51.4545, -2.5879),
+            "cardiff": (51.4816, -3.1791),
+            "newcastle": (54.9783, -1.6178)
+        }
+
+        # Calculate distance to nearest major city
+        min_distance = float('inf')
+        nearest_city = None
+
+        for city, (city_lat, city_lon) in uk_cities.items():
+            distance = self._haversine_distance(lat, lon, city_lat, city_lon)
+            if distance < min_distance:
+                min_distance = distance
+                nearest_city = city
+
+        # Distance to London (capital city effect)
+        london_distance = self._haversine_distance(lat, lon, 51.5074, -0.1278)
+
+        # Urban indicator (closer to city = more urban)
+        # Using sigmoid-like function: 1 for city center, 0 for rural
+        urban_score = 1 / (1 + min_distance / 10)  # 10km half-life
+
+        # Regional indicators based on latitude/longitude
+        is_north = 1 if lat > 53.5 else 0  # North of Manchester
+        is_scotland = 1 if lat > 55.0 else 0
+        is_wales = 1 if lon < -2.5 and lat < 53.0 and lat > 51.3 else 0
+        is_london_area = 1 if london_distance < 50 else 0  # Within 50km of London
+
+        # Latitude and longitude as features (normalized)
+        # UK roughly spans 50-60 lat, -8 to 2 lon
+        lat_normalized = (lat - 50) / 10  # 0-1 range
+        lon_normalized = (lon + 8) / 10   # 0-1 range
+
+        return {
+            "distance_to_nearest_city_km": round(min_distance, 2),
+            "distance_to_london_km": round(london_distance, 2),
+            "urban_score": round(urban_score, 4),
+            "is_north": is_north,
+            "is_scotland": is_scotland,
+            "is_wales": is_wales,
+            "is_london_area": is_london_area,
+            "lat_normalized": round(lat_normalized, 4),
+            "lon_normalized": round(lon_normalized, 4),
+            "nearest_major_city": nearest_city
+        }
+
+    def _haversine_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """
+        Calculate the great-circle distance between two points on Earth.
+
+        Args:
+            lat1, lon1: First point coordinates
+            lat2, lon2: Second point coordinates
+
+        Returns:
+            Distance in kilometers
+        """
+        R = 6371  # Earth's radius in kilometers
+
+        lat1_rad = math.radians(lat1)
+        lat2_rad = math.radians(lat2)
+        delta_lat = math.radians(lat2 - lat1)
+        delta_lon = math.radians(lon2 - lon1)
+
+        a = math.sin(delta_lat / 2) ** 2 + \
+            math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return R * c
     
     async def _collect_crime_features(self, lat: Decimal, lon: Decimal, radius_km: int) -> Dict[str, Any]:
         """Collect crime-related features"""
@@ -420,57 +568,116 @@ class ScoringService:
         return self._deterministic_popularity_score(features)
     
     def _deterministic_safety_score(self, features: Dict[str, Any]) -> float:
-        """Deterministic safety scoring algorithm"""
+        """Deterministic safety scoring algorithm with temporal and spatial features"""
         # Base score
         score = 0.5
-        
-        # Crime factors
+
+        # Crime factors (negative impact)
         crime_density = features.get("crime_density", 0)
         violent_ratio = features.get("violent_crime_ratio", 0)
         recent_ratio = features.get("recent_crime_ratio", 0)
-        
-        # Reduce score based on crime factors
-        score -= min(0.3, crime_density * 0.1)  # Max 0.3 reduction
+
+        score -= min(0.3, crime_density * 0.1)   # Max 0.3 reduction
         score -= min(0.2, violent_ratio * 0.2)   # Max 0.2 reduction
-        score -= min(0.1, recent_ratio * 0.1)   # Max 0.1 reduction
-        
+        score -= min(0.1, recent_ratio * 0.1)    # Max 0.1 reduction
+
         # POI factors (positive impact)
         essential_ratio = features.get("essential_amenity_ratio", 0)
         score += min(0.2, essential_ratio * 0.2)  # Max 0.2 increase
-        
+
         # News sentiment (positive impact)
         avg_sentiment = features.get("avg_sentiment", 0)
         score += min(0.1, max(0, avg_sentiment) * 0.1)  # Max 0.1 increase
-        
+
+        # Temporal adjustments
+        is_night = features.get("is_night", 0)
+        is_weekend = features.get("is_weekend", 0)
+
+        # Safety typically lower at night
+        if is_night:
+            score -= 0.05  # Slight reduction at night
+
+        # Weekend nights slightly less safe in entertainment areas
+        if is_night and is_weekend:
+            score -= 0.02
+
+        # Spatial adjustments
+        urban_score = features.get("urban_score", 0.5)
+        is_london_area = features.get("is_london_area", 0)
+
+        # Urban areas have more police presence but also more crime
+        # Net effect is slightly negative for very urban areas
+        if urban_score > 0.8:
+            score -= 0.03
+
+        # London area adjustment (mixed effect)
+        if is_london_area:
+            score -= 0.02  # Slightly lower due to higher crime rates
+
         return max(0.0, min(1.0, score))
     
     def _deterministic_popularity_score(self, features: Dict[str, Any]) -> float:
-        """Deterministic popularity scoring algorithm"""
+        """Deterministic popularity scoring algorithm with temporal and spatial features"""
         # Base score
         score = 0.3
-        
+
         # Event factors
         total_events = features.get("total_events", 0)
         event_diversity = features.get("event_diversity", 0)
         free_ratio = features.get("free_event_ratio", 0)
-        
-        score += min(0.3, total_events * 0.01)      # Max 0.3 increase
+
+        score += min(0.3, total_events * 0.01)     # Max 0.3 increase
         score += min(0.2, event_diversity * 0.05)  # Max 0.2 increase
-        score += min(0.1, free_ratio * 0.1)         # Max 0.1 increase
-        
+        score += min(0.1, free_ratio * 0.1)        # Max 0.1 increase
+
         # POI factors
         total_pois = features.get("total_pois", 0)
         poi_diversity = features.get("poi_diversity", 0)
         essential_ratio = features.get("essential_amenity_ratio", 0)
-        
-        score += min(0.2, total_pois * 0.005)      # Max 0.2 increase
+
+        score += min(0.2, total_pois * 0.005)     # Max 0.2 increase
         score += min(0.1, poi_diversity * 0.02)   # Max 0.1 increase
         score += min(0.1, essential_ratio * 0.1)  # Max 0.1 increase
-        
+
         # News factors
         news_frequency = features.get("news_frequency", 0)
-        score += min(0.1, news_frequency * 0.1)    # Max 0.1 increase
-        
+        score += min(0.1, news_frequency * 0.1)   # Max 0.1 increase
+
+        # Temporal adjustments
+        is_weekend = features.get("is_weekend", 0)
+        is_evening = features.get("is_evening", 0)
+        is_night = features.get("is_night", 0)
+
+        # Weekends are more popular for leisure
+        if is_weekend:
+            score += 0.05
+
+        # Evening hours are popular for entertainment
+        if is_evening:
+            score += 0.03
+
+        # Late night has reduced popularity (most venues closed)
+        if is_night:
+            score -= 0.05
+
+        # Spatial adjustments
+        urban_score = features.get("urban_score", 0.5)
+        is_london_area = features.get("is_london_area", 0)
+        distance_to_city = features.get("distance_to_nearest_city_km", 50)
+
+        # Urban areas are generally more popular
+        score += min(0.1, urban_score * 0.1)
+
+        # London area bonus (tourist destination, more attractions)
+        if is_london_area:
+            score += 0.05
+
+        # Closer to city centers = more popular
+        if distance_to_city < 5:
+            score += 0.05
+        elif distance_to_city < 15:
+            score += 0.02
+
         return max(0.0, min(1.0, score))
     
     def _is_recent_crime(self, crime_date: str, months: int = 3) -> bool:

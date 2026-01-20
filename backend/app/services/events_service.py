@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.redis import event_cache
 from app.schemas.events import EventData, EventResponse, EventSummary, EventVenue
 from app.core.exceptions import ExternalAPIException
+from app.core.circuit_breaker import ticketmaster_breaker, eventbrite_breaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -154,19 +155,26 @@ class EventsService:
         
         if query:
             params["keyword"] = query
-        
+
+        # Check circuit breaker before making request
+        if ticketmaster_breaker.is_open:
+            logger.warning("Circuit breaker open for Ticketmaster API")
+            raise ExternalAPIException("Ticketmaster", "Circuit breaker open - API temporarily unavailable")
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
-                response = await client.get(
-                    f"{self.ticketmaster_base_url}/events.json",
-                    params=params
-                )
-                response.raise_for_status()
-                
+                # Use circuit breaker to protect the API call
+                async with ticketmaster_breaker:
+                    response = await client.get(
+                        f"{self.ticketmaster_base_url}/events.json",
+                        params=params
+                    )
+                    response.raise_for_status()
+
                 data = response.json()
                 embedded = data.get("_embedded", {})
                 events_data = embedded.get("events", [])
-                
+
                 # Convert to our schema
                 events = []
                 for item in events_data[:limit]:
@@ -177,9 +185,11 @@ class EventsService:
                     except Exception as e:
                         logger.warning(f"Invalid Ticketmaster event: {e}")
                         continue
-                
+
                 return events
-                
+
+            except CircuitOpenError:
+                raise ExternalAPIException("Ticketmaster", "Circuit breaker rejected request")
             except httpx.TimeoutException:
                 raise ExternalAPIException("Ticketmaster", "Request timeout")
             except httpx.HTTPStatusError as e:
@@ -213,24 +223,32 @@ class EventsService:
         
         if query:
             params["q"] = query
-        
+
+        # Check circuit breaker before making request
+        if eventbrite_breaker.is_open:
+            logger.warning("Circuit breaker open for Eventbrite API")
+            return []  # Return empty instead of raising to allow fallback
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
-                # Eventbrite search endpoint is not be available
-                response = await client.get(
-                    f"{self.eventbrite_base_url}/events/search/",
-                    headers=headers,
-                    params=params
-                )
-                
-                if response.status_code == 404:
-                    logger.warning("Eventbrite search endpoint not available (404)")
-                    return []
-                
-                response.raise_for_status()
+                # Use circuit breaker to protect the API call
+                async with eventbrite_breaker:
+                    # Eventbrite search endpoint is not be available
+                    response = await client.get(
+                        f"{self.eventbrite_base_url}/events/search/",
+                        headers=headers,
+                        params=params
+                    )
+
+                    if response.status_code == 404:
+                        logger.warning("Eventbrite search endpoint not available (404)")
+                        return []
+
+                    response.raise_for_status()
+
                 data = response.json()
                 events_data = data.get("events", [])
-                
+
                 # Convert to our schema
                 events = []
                 for item in events_data[:limit]:
@@ -241,9 +259,12 @@ class EventsService:
                     except Exception as e:
                         logger.warning(f"Invalid Eventbrite event: {e}")
                         continue
-                
+
                 return events
-                
+
+            except CircuitOpenError:
+                logger.warning("Circuit breaker rejected Eventbrite request")
+                return []
             except httpx.TimeoutException:
                 raise ExternalAPIException("Eventbrite", "Request timeout")
             except httpx.HTTPStatusError as e:

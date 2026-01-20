@@ -222,34 +222,44 @@ class SummaryService:
         # Get location name
         location_name = await self._get_location_name(request.lat, request.lon)
         
-        # Build narrative sections
+        # Build detailed narrative sections
         sections = []
-        
+
         # Introduction
-        sections.append(f"This area around {location_name} (within {request.radius_km}km) shows the following characteristics:")
-        
-        # Crime section
-        if request.include_crimes and data["crimes"]["count"] > 0:
+        crime_count = data["crimes"]["count"]
+        poi_count = data["pois"]["count"]
+
+        if poi_count > 100:
+            intro = f"{location_name} is a vibrant, bustling area with plenty to offer."
+        elif poi_count > 50:
+            intro = f"{location_name} is an active neighborhood with good amenities."
+        elif poi_count > 20:
+            intro = f"{location_name} is a moderate-sized area with essential services."
+        else:
+            intro = f"{location_name} is a quieter, more residential area."
+
+        sections.append(intro)
+
+        # Crime section (most important - safety first)
+        if request.include_crimes:
             crime_text = self._format_crime_section(data["crimes"])
             sections.append(crime_text)
-        
-        # Event section
-        if request.include_events and data["events"]["count"] > 0:
+
+        # Event section (what's happening)
+        if request.include_events:
             event_text = self._format_event_section(data["events"])
             sections.append(event_text)
-        
-        # News section
-        if request.include_news and data["news"]["count"] > 0:
-            news_text = self._format_news_section(data["news"])
-            sections.append(news_text)
-        
-        # POI section
-        if request.include_pois and data["pois"]["count"] > 0:
+
+        # POI section (amenities and facilities)
+        if request.include_pois:
             poi_text = self._format_poi_section(data["pois"])
             sections.append(poi_text)
-        
-        # Combine sections
-        narrative = " ".join(sections)
+
+        # Combine sections into comprehensive narrative
+        if not sections:
+            narrative = f"No detailed information available for {location_name} at this time."
+        else:
+            narrative = " ".join(sections)
         
         # Try AI summarization if available
         if settings.LLM_PROVIDER.lower() != "none":
@@ -279,97 +289,144 @@ class SummaryService:
         """Format crime data into narrative text"""
         count = crime_data["count"]
         categories = crime_data["categories"]
-        
+
         if count == 0:
-            return "The area has no recent crime reports."
-        
-        text = f"Crime activity shows {count} incidents in the past 12 months. "
-        
-        if categories:
-            top_categories = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:3]
-            category_text = ", ".join([f"{cat} ({count})" for cat, count in top_categories])
-            text += f"Most common crime types: {category_text}."
-        
-        return text
+            return "Safety is excellent with virtually no crime reported. You can explore confidently at any time."
+        elif count < 50:
+            safety_text = f"This is a safe area with only {count} incidents reported in the past year. "
+            if categories:
+                top_crime = max(categories.items(), key=lambda x: x[1])[0]
+                safety_text += f"Most common issues are {top_crime}, but overall it's very secure."
+            return safety_text
+        elif count < 150:
+            safety_text = f"The area has moderate crime levels with {count} incidents. "
+            if categories:
+                top_crime = max(categories.items(), key=lambda x: x[1])[0]
+                safety_text += f"Main concern is {top_crime}. Stay aware of your surroundings, especially in the evening."
+            else:
+                safety_text += "Normal city precautions are recommended, particularly at night."
+            return safety_text
+        else:
+            # High crime area - detailed precautions
+            safety_text = f"Crime is elevated with {count}+ incidents in the past year. "
+            if categories:
+                top_crimes = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:2]
+                crime_types = " and ".join([cat for cat, _ in top_crimes])
+                safety_text += f"Main issues include {crime_types}. "
+            safety_text += "Important precautions: avoid walking alone at night, stick to well-lit main streets, keep valuables out of sight, and consider using taxis after dark."
+            return safety_text
     
     def _format_event_section(self, event_data: Dict[str, Any]) -> str:
         """Format event data into narrative text"""
         count = event_data["count"]
-        types = event_data["types"]
-        
+        items = event_data["items"]
+
         if count == 0:
-            return "No upcoming events found in this area."
-        
-        text = f"There are {count} upcoming events in the area. "
-        
-        if types:
-            free_count = types.get("free", 0)
-            paid_count = types.get("paid", 0)
-            if free_count > 0 and paid_count > 0:
-                text += f"Events include {free_count} free and {paid_count} paid events."
-            elif free_count > 0:
-                text += f"All {free_count} events are free to attend."
+            return "There are no major events scheduled at the moment."
+
+        # Try to get event names
+        event_names = []
+        for event in items[:2]:  # Get up to 2 event names
+            if hasattr(event, 'name'):
+                if isinstance(event.name, dict):
+                    name = event.name.get('text', '')
+                    if name:
+                        event_names.append(name)
+                else:
+                    event_names.append(str(event.name))
+
+        if count == 1:
+            if event_names:
+                return f"There's an exciting upcoming event: {event_names[0]}. Check it out on the map for more details!"
             else:
-                text += f"All {paid_count} events require payment."
-        
-        return text
+                return "There's 1 upcoming event in the area."
+        elif count <= 5:
+            if event_names:
+                return f"There are {count} upcoming events including {event_names[0]}. Great time to visit!"
+            else:
+                return f"There are {count} upcoming events and activities in the area."
+        else:
+            if event_names:
+                return f"This is a happening spot with {count}+ events! Notable ones include {event_names[0]} and many more. Check the events layer for the full lineup."
+            else:
+                return f"Lots to do here - {count}+ events and activities are scheduled. It's a vibrant, active area!"
     
     def _format_news_section(self, news_data: Dict[str, Any]) -> str:
         """Format news data into narrative text"""
         count = news_data["count"]
-        sentiment = news_data["sentiment"]
-        
+
         if count == 0:
-            return "No recent news coverage found for this area."
-        
-        text = f"Recent news coverage includes {count} articles. "
-        
-        if sentiment:
-            avg_sentiment = sentiment["average"]
-            if avg_sentiment > 0.1:
-                text += "Overall sentiment is positive."
-            elif avg_sentiment < -0.1:
-                text += "Overall sentiment is negative."
-            else:
-                text += "Overall sentiment is neutral."
-        
-        return text
+            return "Quiet news - no recent coverage."
+        elif count <= 5:
+            return f"{count} recent news articles."
+        else:
+            return f"In the news recently ({count} articles)."
     
     def _format_poi_section(self, poi_data: Dict[str, Any]) -> str:
         """Format POI data into narrative text"""
         count = poi_data["count"]
         amenities = poi_data["amenities"]
-        
+
         if count == 0:
-            return "No notable points of interest found in this area."
-        
-        text = f"The area features {count} points of interest. "
-        
-        if amenities:
-            top_amenities = sorted(amenities.items(), key=lambda x: x[1], reverse=True)[:3]
-            amenity_text = ", ".join([f"{amenity} ({count})" for amenity, count in top_amenities])
-            text += f"Most common amenities: {amenity_text}."
-        
-        return text
+            return "This is a quiet area with limited commercial amenities. You may need to travel to nearby areas for shopping and dining."
+        elif count < 20:
+            return f"It's a quieter, more residential area with {count} local amenities covering basic needs."
+        elif count < 50:
+            amenity_text = f"The area has {count} places nearby including restaurants, cafes, and shops. "
+            if amenities:
+                top_amenity = max(amenities.items(), key=lambda x: x[1])[0]
+                amenity_text += f"You'll find several {top_amenity} options."
+            return amenity_text
+        else:
+            amenity_text = f"This is a vibrant, well-serviced area with {count}+ places! "
+            if amenities:
+                top_amenities = sorted(amenities.items(), key=lambda x: x[1], reverse=True)[:3]
+                amenity_names = ", ".join([amenity for amenity, _ in top_amenities])
+                amenity_text += f"Popular amenities include {amenity_names}, plus plenty of restaurants, cafes, shops, and services. Everything you need is within walking distance!"
+            else:
+                amenity_text += "You'll find restaurants, cafes, shops, and all essential services within walking distance."
+            return amenity_text
     
     def _build_llm_prompt(self, narrative: str, data: Dict[str, Any], request: SummarizeRequest) -> str:
         """Build structured prompt for LLM consumption."""
+        crime_count = data['crimes']['count']
+        event_count = data['events']['count']
+        poi_count = data['pois']['count']
+
+        # Get top crime categories if available
+        crime_details = ""
+        if data['crimes']['categories']:
+            top_crimes = sorted(data['crimes']['categories'].items(), key=lambda x: x[1], reverse=True)[:2]
+            crime_details = f"Top crime types: {', '.join([cat for cat, _ in top_crimes])}"
+
+        # Get event samples if available
+        event_details = ""
+        if data['events']['items']:
+            event_names = []
+            for event in data['events']['items'][:2]:
+                if hasattr(event, 'name'):
+                    if isinstance(event.name, dict):
+                        event_names.append(event.name.get('text', ''))
+                    else:
+                        event_names.append(str(event.name))
+            if event_names:
+                event_details = f"Notable events: {', '.join(event_names)}"
+
         return (
-            "You are a location intelligence analyst. Using the data provided, generate a concise, data-driven, and helpful summary.\n\n"
-            f"Location coordinates: ({request.lat}, {request.lon}) within a {request.radius_km}km radius.\n"
-            "Aggregate data snapshot:\n"
-            f"- Crimes: {data['crimes']['count']} incidents; categories: {data['crimes']['categories']}\n"
-            f"- Events: {data['events']['count']} upcoming; types: {data['events']['types']}\n"
-            f"- News: {data['news']['count']} articles; sentiment summary: {data['news']['sentiment']}\n"
-            f"- Points of Interest: {data['pois']['count']} items; amenities: {data['pois']['amenities']}\n\n"
-            "Initial narrative synthesis:\n"
-            f"{narrative}\n\n"
-            "Task:\n"
-            "1. Summarize the safety context (crime data).\n"
-            "2. Highlight key attractions or activities (events, POIs).\n"
-            "3. Mention notable recent developments (news sentiment/topics).\n"
-            "4. Provide an overall assessment that would help someone visiting or moving to the area.\n"
-            "Keep the tone professional, objective, and human-like. Limit the response to 2-3 paragraphs."
+            "You are a knowledgeable local guide. Create a detailed, informative summary in 4-5 sentences (100-120 words).\n\n"
+            f"Location data within {request.radius_km}km:\n"
+            f"- Crimes: {crime_count} incidents in past year. {crime_details}\n"
+            f"- Events: {event_count} upcoming. {event_details}\n"
+            f"- Places: {poi_count} points of interest\n"
+            f"- News: {data['news']['count']} recent articles\n\n"
+            "Instructions:\n"
+            "1. Start with a brief introduction about the area's character\n"
+            "2. Provide safety assessment - if crime is high (>150 incidents), include practical precautions (stay alert at night, avoid isolated areas, stick to main streets)\n"
+            "3. Highlight major events or activities happening in the area\n"
+            "4. Mention amenities and what makes the area interesting\n"
+            "5. End with overall recommendation for visitors\n\n"
+            "Write in a friendly, conversational tone like giving advice to a friend. Be honest about safety concerns while being helpful. "
+            "Use natural language, avoid technical jargon."
         )
 
     async def _ai_summarize(self, text: str, data: Dict[str, Any], request: SummarizeRequest) -> str:
@@ -378,15 +435,106 @@ class SummaryService:
             await llm_service.initialize()
 
             prompt = self._build_llm_prompt(text, data, request)
-            summary = await llm_service.generate_summary(prompt)
+            summary = await llm_service.generate_summary(prompt, max_tokens=200)
 
             if summary:
                 return summary
         except Exception as exc:
             logger.warning(f"LLM summarization failed: {exc}")
-        
-        # Fallback to extractive summarization
-        return await nlp_service.summarize_text(text, max_sentences=3)
+
+        # Fallback to template-based detailed summary
+        return self._generate_fallback_summary(data, request)
+
+    def _generate_fallback_summary(self, data: Dict[str, Any], request: SummarizeRequest) -> str:
+        """Generate detailed template-based summary when AI is unavailable"""
+        crime_count = data['crimes']['count']
+        event_count = data['events']['count']
+        poi_count = data['pois']['count']
+        news_count = data['news']['count']
+
+        summary_parts = []
+
+        # 1. Area character introduction
+        if poi_count > 100:
+            summary_parts.append("This is a vibrant, bustling area with plenty to offer.")
+        elif poi_count > 50:
+            summary_parts.append("This is an active neighborhood with good amenities.")
+        elif poi_count > 20:
+            summary_parts.append("This is a moderate-sized area with essential services.")
+        else:
+            summary_parts.append("This is a quieter, more residential area.")
+
+        # 2. Safety assessment with precautions
+        if crime_count == 0:
+            summary_parts.append("It's very safe with virtually no crime reported - you can feel comfortable exploring any time of day.")
+        elif crime_count < 50:
+            summary_parts.append(f"Safety is good with only {crime_count} incidents reported in the past year. Normal city precautions apply.")
+        elif crime_count < 150:
+            summary_parts.append(f"The area has moderate crime levels ({crime_count} incidents). Stay aware of your surroundings, especially in the evening.")
+        else:
+            # High crime - include detailed precautions
+            crime_categories = data['crimes']['categories']
+            if crime_categories:
+                top_crime = max(crime_categories.items(), key=lambda x: x[1])[0]
+                summary_parts.append(
+                    f"Crime is higher here with {crime_count}+ incidents, mainly {top_crime}. "
+                    f"Important precautions: avoid walking alone at night, stick to well-lit main streets, "
+                    f"keep valuables out of sight, and stay alert in crowded areas. Consider using taxis after dark."
+                )
+            else:
+                summary_parts.append(
+                    f"Crime levels are elevated with {crime_count}+ incidents. "
+                    f"Exercise caution: stay on main streets, avoid isolated areas especially at night, "
+                    f"and keep your belongings secure."
+                )
+
+        # 3. Events and activities
+        if event_count > 0:
+            event_items = data['events']['items']
+            if event_items and len(event_items) > 0:
+                # Get first major event name
+                first_event = event_items[0]
+                event_name = ""
+                if hasattr(first_event, 'name'):
+                    if isinstance(first_event.name, dict):
+                        event_name = first_event.name.get('text', '')
+                    else:
+                        event_name = str(first_event.name)
+
+                if event_name and event_count == 1:
+                    summary_parts.append(f"There's an upcoming event: {event_name}.")
+                elif event_name and event_count <= 5:
+                    summary_parts.append(f"There are {event_count} upcoming events including {event_name}.")
+                elif event_count > 5:
+                    if event_name:
+                        summary_parts.append(f"Lots happening - {event_count}+ events including {event_name} and many more!")
+                    else:
+                        summary_parts.append(f"It's an active area with {event_count}+ upcoming events and activities.")
+            else:
+                if event_count > 10:
+                    summary_parts.append(f"There's plenty to do with {event_count}+ events and activities happening.")
+                else:
+                    summary_parts.append(f"There are {event_count} events coming up in the area.")
+
+        # 4. Amenities
+        if poi_count > 100:
+            summary_parts.append(f"You'll find over {poi_count} restaurants, cafes, shops, and services - everything you need is within reach.")
+        elif poi_count > 50:
+            summary_parts.append(f"The area has {poi_count}+ places including restaurants, shops, and essential amenities.")
+        elif poi_count > 20:
+            summary_parts.append(f"There are {poi_count} local amenities to cover your basic needs.")
+
+        # 5. Overall recommendation
+        if crime_count < 50 and poi_count > 50:
+            summary_parts.append("Great spot for visitors and residents alike!")
+        elif crime_count < 100 and event_count > 5:
+            summary_parts.append("Worth a visit, especially if you're interested in local events and culture.")
+        elif crime_count >= 150:
+            summary_parts.append("If visiting, stay vigilant and plan your routes carefully.")
+        else:
+            summary_parts.append("A decent area to explore with proper awareness.")
+
+        return " ".join(summary_parts)
 
 
 # Service instance

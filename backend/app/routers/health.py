@@ -9,6 +9,7 @@ import logging
 
 from app.core.redis import get_redis
 from app.core.config import settings
+from app.core.circuit_breaker import get_circuit_breaker_metrics
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -76,7 +77,22 @@ async def detailed_status_check() -> Dict[str, Any]:
         "status": "healthy" if all(api_configs.values()) else "degraded",
         "configurations": api_configs
     }
-    
+
+    # Check circuit breakers
+    circuit_breaker_metrics = get_circuit_breaker_metrics()
+    circuit_breaker_status = "healthy"
+    open_circuits = []
+    for name, metrics in circuit_breaker_metrics.items():
+        if metrics.get("state") == "open":
+            circuit_breaker_status = "degraded"
+            open_circuits.append(name)
+
+    health_status["checks"]["circuit_breakers"] = {
+        "status": circuit_breaker_status,
+        "open_circuits": open_circuits,
+        "metrics": circuit_breaker_metrics
+    }
+
     # Overall status determination
     if health_status["status"] == "ok":
         unhealthy_checks = [

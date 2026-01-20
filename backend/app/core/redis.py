@@ -12,6 +12,19 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Import metrics collector (lazy import to avoid circular dependency)
+_metrics_collector = None
+
+def _get_metrics():
+    global _metrics_collector
+    if _metrics_collector is None:
+        try:
+            from app.core.metrics import metrics_collector
+            _metrics_collector = metrics_collector
+        except ImportError:
+            pass
+    return _metrics_collector
+
 # Global Redis connection
 redis_client: Optional[redis.Redis] = None
 
@@ -49,21 +62,30 @@ async def get_redis() -> Optional[redis.Redis]:
 
 
 class RedisCache:
-    """Redis cache manager"""
-    
-    def __init__(self, default_ttl: int = 3600):
+    """Redis cache manager with metrics tracking"""
+
+    def __init__(self, default_ttl: int = 3600, cache_name: str = "default"):
         self.default_ttl = default_ttl
-    
+        self.cache_name = cache_name
+
     async def get(self, key: str) -> Optional[Any]:
-        """Get value from cache"""
+        """Get value from cache with hit/miss tracking"""
         try:
             redis = await get_redis()
             if redis is None:
                 return None
             value = await redis.get(key)
+            metrics = _get_metrics()
             if value:
+                # Record cache hit
+                if metrics:
+                    metrics.record_cache_hit(self.cache_name)
                 return json.loads(value)
-            return None
+            else:
+                # Record cache miss
+                if metrics:
+                    metrics.record_cache_miss(self.cache_name)
+                return None
         except Exception as e:
             logger.warning(f"Cache get error for key {key}: {e}")
             return None
@@ -123,12 +145,12 @@ class RedisCache:
         return f"{prefix}:{params}" if params else prefix
 
 
-# Cache instances for different data types
-geocode_cache = RedisCache(default_ttl=settings.GEOCODE_CACHE_TTL)
-crime_cache = RedisCache(default_ttl=settings.CRIME_CACHE_TTL)
-event_cache = RedisCache(default_ttl=settings.EVENT_CACHE_TTL)
-news_cache = RedisCache(default_ttl=settings.NEWS_CACHE_TTL)
-poi_cache = RedisCache(default_ttl=settings.POI_CACHE_TTL)
+# Cache instances for different data types (with names for metrics tracking)
+geocode_cache = RedisCache(default_ttl=settings.GEOCODE_CACHE_TTL, cache_name="geocode")
+crime_cache = RedisCache(default_ttl=settings.CRIME_CACHE_TTL, cache_name="crime")
+event_cache = RedisCache(default_ttl=settings.EVENT_CACHE_TTL, cache_name="event")
+news_cache = RedisCache(default_ttl=settings.NEWS_CACHE_TTL, cache_name="news")
+poi_cache = RedisCache(default_ttl=settings.POI_CACHE_TTL, cache_name="poi")
 
 
 

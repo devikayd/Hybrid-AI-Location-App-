@@ -95,6 +95,23 @@ export const getUserRecommendations = async (userId, params) => {
   return res.data;
 };
 
+// Chat API endpoints
+export const sendChatMessage = async ({ message, lat, lon, location_name, conversation_id }) => {
+  const res = await api.post('/v1/chat', {
+    message,
+    lat,
+    lon,
+    location_name,
+    conversation_id
+  });
+  return res.data;
+};
+
+export const getChatIntents = async () => {
+  const res = await api.get('/v1/chat/intents');
+  return res.data;
+};
+
 
 
 

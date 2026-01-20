@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.redis import poi_cache
 from app.schemas.pois import POIData, POIResponse, POISummary, POITags
 from app.core.exceptions import ExternalAPIException
+from app.core.circuit_breaker import overpass_breaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -144,20 +145,31 @@ class POIsService:
         ]
         
         last_error = None
-        
+
+        # Check circuit breaker before making any requests
+        if overpass_breaker.is_open:
+            logger.warning("Circuit breaker open for Overpass API, trying simplified fallback")
+            try:
+                return await self._fetch_pois_simplified(lat, lon, radius_m, limit)
+            except Exception as fallback_error:
+                logger.error(f"Simplified query also failed: {fallback_error}")
+                raise ExternalAPIException("Overpass", "Circuit breaker open and fallback failed")
+
         for instance_url in overpass_instances:
             try:
                 # Build optimized Overpass QL query
                 query = self._build_overpass_query(lat, lon, radius_m, types)
-                
+
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     try:
-                        response = await client.post(
-                            f"{instance_url}/interpreter",
-                            data=query,
-                            headers={"Content-Type": "text/plain"}
-                        )
-                        response.raise_for_status()
+                        # Use circuit breaker to protect the API call
+                        async with overpass_breaker:
+                            response = await client.post(
+                                f"{instance_url}/interpreter",
+                                data=query,
+                                headers={"Content-Type": "text/plain"}
+                            )
+                            response.raise_for_status()
                         
                         data = response.json()
                         elements = data.get("elements", [])
@@ -176,6 +188,10 @@ class POIsService:
                         logger.info(f"Fetched {len(pois)} POIs from {instance_url} for location {lat}, {lon}")
                         return pois
                         
+                    except CircuitOpenError:
+                        logger.warning(f"Circuit breaker rejected request to {instance_url}")
+                        last_error = ExternalAPIException("Overpass", "Circuit breaker rejected request")
+                        continue
                     except httpx.TimeoutException:
                         logger.warning(f"Timeout from {instance_url}, trying next instance...")
                         last_error = ExternalAPIException("Overpass", f"Request timeout from {instance_url}")

@@ -33,7 +33,6 @@ export default function SidePanel() {
   const newsCount = news.length;
   const poisCount = pois.length;
 
-  // Debug logging
   if (scoresError && process.env.NODE_ENV === 'development') {
     // Only log if it's not a timeout
     if (!scoresError.message?.includes('timeout')) {

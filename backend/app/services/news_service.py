@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.redis import news_cache
 from app.schemas.news import NewsArticle, NewsResponse, NewsSummary, NewsSource
 from app.core.exceptions import ExternalAPIException
+from app.core.circuit_breaker import newsapi_breaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -146,14 +147,21 @@ class NewsService:
             params["country"] = "gb"  # UK news
         
         logger.info(f"Fetching news from NewsAPI with params: {params}")
-        
+
+        # Check circuit breaker before making request
+        if newsapi_breaker.is_open:
+            logger.warning("Circuit breaker open for NewsAPI")
+            raise ExternalAPIException("NewsAPI", "Circuit breaker open - API temporarily unavailable")
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
-                response = await client.get(
-                    f"{self.base_url}/top-headlines",
-                    params=params
-                )
-                response.raise_for_status()
+                # Use circuit breaker to protect the API call
+                async with newsapi_breaker:
+                    response = await client.get(
+                        f"{self.base_url}/top-headlines",
+                        params=params
+                    )
+                    response.raise_for_status()
                 
                 data = response.json()
                 articles_data = data.get("articles", [])
@@ -214,7 +222,9 @@ class NewsService:
                 
                 logger.info(f"Fetched {len(articles)} news articles for location {lat}, {lon}")
                 return articles
-                
+
+            except CircuitOpenError:
+                raise ExternalAPIException("NewsAPI", "Circuit breaker rejected request")
             except httpx.TimeoutException:
                 raise ExternalAPIException("NewsAPI", "Request timeout")
             except httpx.HTTPStatusError as e:

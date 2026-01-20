@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.redis import crime_cache
 from app.schemas.crime import CrimeData, CrimeResponse, CrimeSummary
 from app.core.exceptions import ExternalAPIException
+from app.core.circuit_breaker import uk_police_breaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -148,17 +149,24 @@ class CrimeService:
                 params["category"] = category
             
             logger.info(f"Requesting crimes for date: {date_str} (current date: {now.strftime('%Y-%m-%d')}, {months_back} month(s) back)")
-            
+
+            # Check circuit breaker before making request
+            if uk_police_breaker.is_open:
+                logger.warning(f"Circuit breaker open for UK Police API, skipping request for {date_str}")
+                continue
+
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 try:
-                    response = await client.get(
-                        f"{self.base_url}/crimes-street/all-crime",
-                        params=params
-                    )
-                    response.raise_for_status()
-                    
+                    # Use circuit breaker to protect the API call
+                    async with uk_police_breaker:
+                        response = await client.get(
+                            f"{self.base_url}/crimes-street/all-crime",
+                            params=params
+                        )
+                        response.raise_for_status()
+
                     data = response.json()
-                    
+
                     # Convert to schema
                     for item in data:
                         try:
@@ -177,12 +185,15 @@ class CrimeService:
                         except Exception as e:
                             logger.warning(f"Invalid crime data: {e}")
                             continue
-                    
+
                     logger.info(f"Fetched {len(data)} crimes for {date_str}, total so far: {len(all_crimes)}")
- 
+
                     if len(all_crimes) >= limit:
                         break
-                        
+
+                except CircuitOpenError:
+                    logger.warning(f"Circuit breaker rejected request for {date_str}")
+                    continue
                 except httpx.HTTPStatusError as e:
                     if e.response.status_code == 404:
                         # 404 means no data for this month, try next month

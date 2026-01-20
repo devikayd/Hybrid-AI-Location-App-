@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 import logging
 import os
+import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -11,8 +12,9 @@ from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.redis import init_redis
-from app.routers import health as status, geocode, crime, events, news, pois, summary, scoring, data_collection, data_cleaning, feature_engineering, model_training, location_data, user_interaction, user_recommendations
+from app.routers import health as status, geocode, crime, events, news, pois, summary, scoring, data_collection, data_cleaning, feature_engineering, model_training, location_data, user_interaction, user_recommendations, metrics, chat
 from app.core.exceptions import setup_exception_handlers
+from app.core.metrics import metrics_collector
 
 from app.models import CrimeData, EventData, NewsData, POIData, TrainingData, UserInteraction
 
@@ -69,6 +71,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Metrics middleware - track request latencies
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Middleware to track request latencies for all endpoints"""
+    start_time = time.time()
+    response = await call_next(request)
+    latency = time.time() - start_time
+
+    # Record metrics for API endpoints
+    if request.url.path.startswith("/api/"):
+        metrics_collector.record_request(request.url.path, latency)
+
+    return response
+
+
 # Setup exception handlers
 setup_exception_handlers(app)
 
@@ -88,6 +106,8 @@ app.include_router(data_collection.router, prefix="/api/v1", tags=["data-collect
 app.include_router(data_cleaning.router, prefix="/api/v1", tags=["data-cleaning"])
 app.include_router(feature_engineering.router, prefix="/api/v1/features", tags=["feature-engineering"])
 app.include_router(model_training.router, prefix="/api/v1/models", tags=["model-training"])
+app.include_router(metrics.router, prefix="/api/v1", tags=["metrics"])
+app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 
 # Catch-all for SPA (React router)
 # @app.get("/{full_path:path}")
@@ -115,7 +135,8 @@ async def api_root():
             "data-collection": "/api/v1/collect",
             "data-cleaning": "/api/v1/clean",
             "feature-engineering": "/api/v1/features",
-            "model-training": "/api/v1/models"
+            "model-training": "/api/v1/models",
+            "chat": "/api/v1/chat"
         }
     }
 
