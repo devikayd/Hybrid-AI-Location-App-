@@ -23,8 +23,10 @@ const ChatPanel = () => {
   const messagesEndRef = useRef(null);
 
   // Get current location from map store
-  const selectedLocation = useMapStore((s) => s.selectedLocation);
+  const center = useMapStore((s) => s.center);
+  const selectedLocation = useMapStore((s) => s.selectedLocation) || center;
   const setLayerVisibility = useMapStore((s) => s.setLayerVisibility);
+  const setTripPlan = useMapStore((s) => s.setTripPlan);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -49,8 +51,8 @@ const ChatPanel = () => {
       // Send message to backend
       const response = await sendChatMessage({
         message: userMessage.content,
-        lat: selectedLocation?.lat,
-        lon: selectedLocation?.lon,
+        lat: selectedLocation?.lat ?? center?.lat,
+        lon: selectedLocation?.lon ?? center?.lon,
         location_name: selectedLocation?.name
       });
 
@@ -87,7 +89,6 @@ const ChatPanel = () => {
   const executeActions = (actions) => {
     actions.forEach(action => {
       if (action.type === 'show_layer' && action.target) {
-        // Map action targets to layer names
         const layerMap = {
           'crimes': 'crimes',
           'events': 'events',
@@ -98,6 +99,14 @@ const ChatPanel = () => {
         if (layerName && setLayerVisibility) {
           setLayerVisibility(layerName, true);
         }
+      } else if (action.type === 'show_trip_plan' && action.params?.stops) {
+        // Trip plan returned from chat — push to map store so TripPlanner + TripRouteLayer render it
+        setTripPlan({
+          stops: action.params.stops,
+          total_stops: action.params.stops.length,
+          total_duration_text: action.params.total_duration_text || '',
+          location_name: action.params.location_name || '',
+        });
       }
     });
   };

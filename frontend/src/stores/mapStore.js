@@ -5,16 +5,23 @@ export const useMapStore = create((set, get) => ({
   zoom: 13,
   recentSearches: [],
   showRecentSearches: false,
+  selectedLocation: null,
+  tripPlan: null,
   layers: {
-    crimes: true,
-    events: true,
-    news: true,
-    pois: true,
+    crimes: false,
+    events: false,
+    news: false,
+    pois: false,
+    trip_route: false,
   },
   setCenter: (lat, lon) => set({ center: { lat, lon } }),
   setZoom: (zoom) => set({ zoom }),
   setShowRecentSearches: (show) => set({ showRecentSearches: show }),
+  setSelectedLocation: (location) => set({ selectedLocation: location }),
   toggleLayer: (key) => set((state) => ({ layers: { ...state.layers, [key]: !state.layers[key] } })),
+  setLayerVisibility: (key, visible) => set((state) => ({ layers: { ...state.layers, [key]: visible } })),
+  setTripPlan: (plan) => set({ tripPlan: plan, layers: { ...get().layers, trip_route: !!plan } }),
+  clearTripPlan: () => set({ tripPlan: null, layers: { ...get().layers, trip_route: false } }),
   addRecentSearch: (item) => set((state) => {
     const exists = state.recentSearches.find((s) => s.query === item.query);
     const list = exists ? state.recentSearches : [item, ...state.recentSearches].slice(0, 8);

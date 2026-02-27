@@ -130,6 +130,26 @@ class IntentDetector:
                 "what can you do", "how do i", "how can i", "help me",
                 "what do you know", "your capabilities", "can you"
             ]
+        },
+        IntentType.TRIP_PLANNING: {
+            "keywords": [
+                "plan", "itinerary", "sightseeing", "explore", "discover",
+                "visit", "tour", "day out", "trip"
+            ],
+            "phrases": [
+                "plan a day", "day trip to", "places to visit", "worth visiting",
+                "what should i visit", "suggest places", "plan my day",
+                "day trip", "things to do", "places to see", "must see"
+            ]
+        },
+        IntentType.SAFETY_ROUTE: {
+            "keywords": [
+                "safest", "avoid", "safe walk", "safe route"
+            ],
+            "phrases": [
+                "safe to walk", "safest way to", "is it safe to go",
+                "safe route to", "safe to travel", "avoid danger"
+            ]
         }
     }
 
@@ -222,6 +242,12 @@ class ActionExecutor:
             elif intent == IntentType.COMPARISON:
                 # Comparison needs special handling with two locations
                 return await self._fetch_comparison_data(extra_context)
+
+            elif intent == IntentType.TRIP_PLANNING:
+                return await self._fetch_trip_plan(lat_decimal, lon_decimal, extra_context)
+
+            elif intent == IntentType.SAFETY_ROUTE:
+                return await self._fetch_safety_data(lat_decimal, lon_decimal, radius_km)
 
             else:
                 return {"data_sources": []}
@@ -334,6 +360,35 @@ class ActionExecutor:
             "data_sources": []
         }
 
+    async def _fetch_trip_plan(
+        self,
+        lat: Decimal,
+        lon: Decimal,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Generate a day trip itinerary and return it as chat data."""
+        try:
+            from app.services.trip_planner_service import trip_planner_service
+            user_id = (context or {}).get("user_id", "anonymous")
+            trip_plan = await trip_planner_service.plan_day_trip(
+                lat=lat,
+                lon=lon,
+                user_id=user_id,
+                max_stops=5,
+                mode="foot-walking",
+            )
+            return {
+                "trip_plan": trip_plan.model_dump(mode="json"),
+                "data_sources": ["OpenStreetMap", "Safety Scoring Model", "OpenRouteService"],
+            }
+        except Exception as e:
+            logger.error(f"Trip plan fetch failed in chat: {e}")
+            return {
+                "trip_plan": None,
+                "error": str(e),
+                "data_sources": [],
+            }
+
 
 class ResponseGenerator:
     """
@@ -423,6 +478,18 @@ For example: "Is this area safe?" or "What events are happening nearby?"""
 
         # Add actions based on intent
         actions = self._get_actions_for_intent(intent)
+
+        # For trip planning, embed the actual stops in the action so the
+        # frontend can render the itinerary on the map without a second API call
+        if intent == IntentType.TRIP_PLANNING and data.get("trip_plan"):
+            plan = data["trip_plan"]
+            stops = plan.get("stops", [])
+            if stops and actions:
+                actions[0].params = {
+                    "stops": stops,
+                    "total_duration_text": plan.get("total_duration_text", ""),
+                    "location_name": plan.get("location_name", ""),
+                }
 
         return response, actions
 
@@ -677,6 +744,30 @@ Respond in 2-3 short sentences (40-60 words max). Cover safety, activities, and 
 
             return f"{', '.join(parts)}. Check the map for details!"
 
+        elif intent == IntentType.TRIP_PLANNING:
+            plan = data.get("trip_plan")
+            if plan and plan.get("stops"):
+                stops = plan["stops"]
+                names = ", ".join(s["name"] for s in stops[:3])
+                total_text = plan.get("total_duration_text", "")
+                return (
+                    f"Here's a suggested day out with {len(stops)} stops — starting with {names}. "
+                    f"{total_text}. Check the map for the full route!"
+                )
+            return "I couldn't find enough places to visit nearby. Try searching a busier area or town centre."
+
+        elif intent == IntentType.SAFETY_ROUTE:
+            scores = data.get("scores", {})
+            safety_score = scores.get("safety_score", 5.0) if scores else 5.0
+            if isinstance(safety_score, (int, float)):
+                if safety_score >= 7:
+                    return "The area generally has a good safety rating. It should be fine to walk through — just apply the usual awareness you would in any UK city."
+                elif safety_score >= 5:
+                    return "The area has a moderate safety rating. Walking during the day is generally fine; at night, stay on well-lit main streets and keep aware of your surroundings."
+                else:
+                    return "The area has a lower safety rating. Consider travelling with someone, sticking to busier streets, and avoiding late-night walks alone."
+            return "Check the crime layer on the map for local incident data before heading out."
+
         return "I'm not quite sure how to help with that. Could you rephrase your question or ask about safety, events, or places in a specific location?"
 
     def _get_actions_for_intent(self, intent: IntentType) -> List[ChatAction]:
@@ -711,6 +802,20 @@ Respond in 2-3 short sentences (40-60 words max). Cover safety, activities, and 
                 params={"highlight": True}
             ))
 
+        elif intent == IntentType.TRIP_PLANNING:
+            actions.append(ChatAction(
+                type="show_trip_plan",
+                target="trip_route",
+                params={"highlight": True}
+            ))
+
+        elif intent == IntentType.SAFETY_ROUTE:
+            actions.append(ChatAction(
+                type="show_layer",
+                target="crimes",
+                params={"highlight": True}
+            ))
+
         return actions
 
 
@@ -740,20 +845,51 @@ class ChatService:
             "Oxford", "Bath", "York", "Canterbury", "Nottingham", "Leicester", "Southampton",
             "Portsmouth", "Reading", "Norwich", "Coventry", "Bradford", "Hull", "Wolverhampton",
             "Plymouth", "Stoke", "Derby", "Aberdeen", "Dundee", "Swansea", "Milton Keynes",
-            "Camden", "Shoreditch", "Westminster", "Kensington", "Chelsea", "Hackney", "Islington"
+            "Camden", "Shoreditch", "Westminster", "Kensington", "Chelsea", "Hackney", "Islington",
+            "Scotland", "Wales", "Cornwall", "Devon", "Yorkshire", "Kent", "Surrey"
         ]
 
-        # Extract potential location from message (case-insensitive)
+        # Destination mapping — country/region names → their main city for better POI results
+        destination_overrides = {
+            "scotland": "Edinburgh",
+            "wales": "Cardiff",
+            "cornwall": "Truro",
+            "devon": "Exeter",
+            "yorkshire": "York",
+            "kent": "Canterbury",
+            "surrey": "Guildford",
+        }
+
         message_lower = message.lower()
         found_location = None
 
-        for location in uk_locations:
-            if location.lower() in message_lower:
-                found_location = location
-                break
+        # Check "from X to Y" pattern FIRST to extract the destination, not the origin
+        from_to_match = re.search(
+            r'\bfrom\s+\w+(?:\s+\w+)?\s+to\s+(\w+(?:\s+\w+)?)', message_lower
+        )
+        if from_to_match:
+            candidate = from_to_match.group(1).strip()
+            found_location = destination_overrides.get(candidate.lower(), candidate.title())
 
         if not found_location:
-            # Try to extract location after common phrases
+            # Check for "to <location>" pattern (trip/day trip queries)
+            to_match = re.search(
+                r'(?:trip|travel|day\s+trip|plan|visit|go|heading|journey)\s+to\s+(\w+(?:\s+\w+)?)',
+                message_lower
+            )
+            if to_match:
+                candidate = to_match.group(1).strip()
+                found_location = destination_overrides.get(candidate.lower(), candidate.title())
+
+        if not found_location:
+            # Scan known UK cities/regions (case-insensitive)
+            for location in uk_locations:
+                if location.lower() in message_lower:
+                    found_location = destination_overrides.get(location.lower(), location)
+                    break
+
+        if not found_location:
+            # Fallback regex patterns
             location_phrases = [
                 r"in (\w+(?:\s+\w+)?)",
                 r"at (\w+(?:\s+\w+)?)",
@@ -766,7 +902,6 @@ class ChatService:
                 match = re.search(pattern, message_lower)
                 if match:
                     potential_location = match.group(1).title()
-                    # Verify it looks like a location (capitalized words)
                     if len(potential_location) > 2:
                         found_location = potential_location
                         break
@@ -820,6 +955,17 @@ class ChatService:
         # Detect intent
         intent, confidence = self.intent_detector.detect(request.message)
         logger.info(f"Detected intent: {intent} (confidence: {confidence:.2f})")
+
+        # For trip planning, always try to extract the destination from the message.
+        # This overrides the map coordinates so "plan a trip to Scotland" goes to
+        # Scotland, not wherever the map is currently centred.
+        if intent == IntentType.TRIP_PLANNING:
+            extracted_lat, extracted_lon, extracted_name = await self._extract_and_geocode_location(request.message)
+            if extracted_lat and extracted_lon:
+                lat = extracted_lat
+                lon = extracted_lon
+                location_name = extracted_name
+                logger.info(f"Trip planning: overriding coords with extracted destination: {location_name} ({lat}, {lon})")
 
         # Execute action to fetch data
         data = await self.action_executor.execute(

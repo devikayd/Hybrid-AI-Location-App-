@@ -387,3 +387,13 @@ overpass_breaker = get_circuit_breaker(
         timeout_weight=0.5  # Timeouts are common for Overpass, weight less
     )
 )
+
+ors_breaker = get_circuit_breaker(
+    "openrouteservice",
+    CircuitBreakerConfig(
+        failure_threshold=5,
+        recovery_timeout=30.0,
+        half_open_max_calls=2,
+        success_threshold=2
+    )
+)

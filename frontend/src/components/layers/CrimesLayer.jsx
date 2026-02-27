@@ -14,7 +14,6 @@ function createEmojiPinIcon(emoji, fill = '#2563eb') {
       <text x="12.5" y="16" font-size="12" text-anchor="middle" alignment-baseline="central">${emoji}</text>
     </svg>
   `;
-
   return new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + svgToBase64(svg),
     iconSize: [25, 41],
@@ -29,7 +28,6 @@ function createEmojiPinIcon(emoji, fill = '#2563eb') {
 const crimeIcon = createEmojiPinIcon('👮', '#dc2626');
 
 export default function CrimesLayer() {
-  // Use shared location data hook
   const { data, isLoading } = useLocationData();
 
   if (isLoading || !data?.crimes?.length) return null;
@@ -55,8 +53,3 @@ export default function CrimesLayer() {
     </>
   );
 }
-
-
-
-
-

@@ -3,6 +3,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useSummary, useScores } from '../hooks/useDataHooks';
 import { useLocationData } from '../hooks/useLocationData';
 import LocationDataList from './LocationDataList';
+import TripPlanner from './TripPlanner';
 
 function Chip({ label, value, color = 'info' }) {
   const colorClass = {
@@ -74,6 +75,7 @@ export default function SidePanel() {
         )}
       </div>
 
+      <TripPlanner />
       <LocationDataList />
     </aside>
   );

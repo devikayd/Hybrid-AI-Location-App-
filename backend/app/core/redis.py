@@ -151,6 +151,7 @@ crime_cache = RedisCache(default_ttl=settings.CRIME_CACHE_TTL, cache_name="crime
 event_cache = RedisCache(default_ttl=settings.EVENT_CACHE_TTL, cache_name="event")
 news_cache = RedisCache(default_ttl=settings.NEWS_CACHE_TTL, cache_name="news")
 poi_cache = RedisCache(default_ttl=settings.POI_CACHE_TTL, cache_name="poi")
+route_cache = RedisCache(default_ttl=settings.TRIP_PLAN_CACHE_TTL, cache_name="route")
 
 
 

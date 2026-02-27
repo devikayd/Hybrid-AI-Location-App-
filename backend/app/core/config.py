@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     TICKETMASTER_BASE_URL: str = "https://app.ticketmaster.com/discovery/v2"
     NEWSAPI_BASE_URL: str = "https://newsapi.org/v2"
     OVERPASS_BASE_URL: str = "https://overpass-api.de/api"
+
+    # OpenRouteService (trip planner routing)
+    ORS_API_KEY: Optional[str] = None
+    ORS_BASE_URL: str = "https://api.openrouteservice.org"
+    ORS_TIMEOUT: int = 15
+    TRIP_PLAN_CACHE_TTL: int = 1800  # 30 minutes
     
     @property
     def cors_origins_list(self) -> List[str]:

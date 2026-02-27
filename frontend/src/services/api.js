@@ -112,6 +112,14 @@ export const getChatIntents = async () => {
   return res.data;
 };
 
+// Trip planner endpoint
+export const getTripPlan = async ({ lat, lon, user_id, max_stops = 5, mode = 'foot-walking' }) => {
+  const res = await api.post('/v1/trip-plan', { lat, lon, user_id, max_stops, mode }, {
+    timeout: 30000,
+  });
+  return res.data;
+};
+
 
 
 

@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.redis import init_redis
-from app.routers import health as status, geocode, crime, events, news, pois, summary, scoring, data_collection, data_cleaning, feature_engineering, model_training, location_data, user_interaction, user_recommendations, metrics, chat
+from app.routers import health as status, geocode, crime, events, news, pois, summary, scoring, data_collection, data_cleaning, feature_engineering, model_training, location_data, user_interaction, user_recommendations, metrics, chat, trip_planner
 from app.core.exceptions import setup_exception_handlers
 from app.core.metrics import metrics_collector
 
@@ -108,6 +108,7 @@ app.include_router(feature_engineering.router, prefix="/api/v1/features", tags=[
 app.include_router(model_training.router, prefix="/api/v1/models", tags=["model-training"])
 app.include_router(metrics.router, prefix="/api/v1", tags=["metrics"])
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
+app.include_router(trip_planner.router, prefix="/api/v1", tags=["trip-planner"])
 
 # Catch-all for SPA (React router)
 # @app.get("/{full_path:path}")

@@ -20,7 +20,7 @@ export function useLocationData() {
   }, []);
 
   return useQuery({
-    queryKey: ['location-data', center, userId],
+    queryKey: ['location-data', center.lat, center.lon, userId],
     queryFn: () => getLocationData({
       lat: center?.lat || 51.5074,
       lon: center?.lon || -0.1278,
@@ -29,6 +29,7 @@ export function useLocationData() {
     }),
     enabled: !!(center && center.lat && center.lon),
     staleTime: 60_000,
+    placeholderData: undefined,  // clear old markers immediately when location changes
     retry: 1,
     retryDelay: 2000,
   });

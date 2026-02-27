@@ -14,7 +14,6 @@ function createEmojiPinIcon(emoji, fill = '#2563eb') {
       <text x="12.5" y="16" font-size="12" text-anchor="middle" alignment-baseline="central">${emoji}</text>
     </svg>
   `;
-
   return new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + svgToBase64(svg),
     iconSize: [25, 41],
@@ -26,10 +25,9 @@ function createEmojiPinIcon(emoji, fill = '#2563eb') {
   });
 }
 
-const newsIcon = createEmojiPinIcon('📰', '#eab308');
+const newsIcon = createEmojiPinIcon('📰', '#ca8a04');
 
 export default function NewsLayer() {
-  // Use shared location data hook
   const { data, isLoading } = useLocationData();
 
   if (isLoading || !data?.news?.length) return null;
@@ -59,8 +57,3 @@ export default function NewsLayer() {
     </>
   );
 }
-
-
-
-
-

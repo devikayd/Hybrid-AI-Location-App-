@@ -27,6 +27,8 @@ class IntentType(str, Enum):
     GENERAL_INFO = "general_info"      # "Tell me about X", "Overview"
     GREETING = "greeting"              # "Hello", "Hi"
     HELP = "help"                      # "What can you do?", "Help"
+    TRIP_PLANNING = "trip_planning"    # "Plan a day trip", "Places to visit"
+    SAFETY_ROUTE = "safety_route"      # "Is it safe to walk to X", "Safest route"
     UNKNOWN = "unknown"                # Fallback for unrecognized queries
 
 
