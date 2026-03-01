@@ -20,11 +20,35 @@ L.Icon.Default.mergeOptions({
   shadowUrl: shadow,
 });
 
-function RecenterOnChange({ lat, lon, zoom }) {
+// Derive a sensible zoom level from the Nominatim bounding box size.
+// Larger bbox = more zoomed out. This avoids flyToBounds which zooms out
+// to show the whole city outline (wrong behaviour).
+function zoomFromBbox(bbox) {
+  if (!bbox || bbox.length !== 4) return 14;
+  const deltaLat = Math.abs(Number(bbox[1]) - Number(bbox[0]));
+  const deltaLon = Math.abs(Number(bbox[3]) - Number(bbox[2]));
+  const maxDelta = Math.max(deltaLat, deltaLon);
+  if (maxDelta > 5)    return 7;   // country / large region
+  if (maxDelta > 1)    return 10;  // county / large area
+  if (maxDelta > 0.3)  return 12;  // large city  (e.g. London)
+  if (maxDelta > 0.1)  return 14;  // city / town (e.g. Liverpool)
+  if (maxDelta > 0.02) return 15;  // suburb / district
+  return 16;                        // street / postcode
+}
+
+function FlyToSearch() {
   const map = useMap();
+  const searchId = useMapStore((s) => s.searchId);
+  const center = useMapStore((s) => s.center);
+  const boundingBox = useMapStore((s) => s.boundingBox);
+
   useEffect(() => {
-    map.setView([lat, lon], zoom, { animate: true });
-  }, [lat, lon, zoom, map]);
+    if (!searchId) return; // skip initial render — don't fly on page load
+    const targetZoom = zoomFromBbox(boundingBox);
+    map.flyTo([center.lat, center.lon], targetZoom, { animate: true, duration: 1.0 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchId]);
+
   return null;
 }
 
@@ -100,7 +124,7 @@ export default function MapView() {
           {layers.pois && <POIsLayer />}
           {layers.trip_route && <TripRouteLayer />}
 
-          <RecenterOnChange lat={center.lat} lon={center.lon} zoom={zoom} />
+          <FlyToSearch />
         </MapContainer>
       </div>
     </div>

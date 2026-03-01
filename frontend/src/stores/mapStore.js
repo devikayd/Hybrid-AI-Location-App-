@@ -3,6 +3,8 @@ import { create } from 'zustand';
 export const useMapStore = create((set, get) => ({
   center: { lat: 51.5074, lon: -0.1278 },
   zoom: 13,
+  boundingBox: null,   // [minLat, maxLat, minLon, maxLon] from Nominatim
+  searchId: 0,         // increments on every search — used as reliable useEffect trigger
   recentSearches: [],
   showRecentSearches: false,
   selectedLocation: null,
@@ -16,6 +18,8 @@ export const useMapStore = create((set, get) => ({
   },
   setCenter: (lat, lon) => set({ center: { lat, lon } }),
   setZoom: (zoom) => set({ zoom }),
+  setBoundingBox: (bbox) => set({ boundingBox: bbox }),
+  incrementSearchId: () => set((state) => ({ searchId: state.searchId + 1 })),
   setShowRecentSearches: (show) => set({ showRecentSearches: show }),
   setSelectedLocation: (location) => set({ selectedLocation: location }),
   toggleLayer: (key) => set((state) => ({ layers: { ...state.layers, [key]: !state.layers[key] } })),

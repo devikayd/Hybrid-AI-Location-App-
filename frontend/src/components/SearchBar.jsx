@@ -9,6 +9,8 @@ export default function SearchBar() {
   const [successMessage, setSuccessMessage] = useState('');
   const setCenter = useMapStore((s) => s.setCenter);
   const setZoom = useMapStore((s) => s.setZoom);
+  const setBoundingBox = useMapStore((s) => s.setBoundingBox);
+  const incrementSearchId = useMapStore((s) => s.incrementSearchId);
   const setSelectedLocation = useMapStore((s) => s.setSelectedLocation);
   const addRecentSearch = useMapStore((s) => s.addRecentSearch);
   const recentSearches = useMapStore((s) => s.recentSearches);
@@ -18,20 +20,13 @@ export default function SearchBar() {
     mutationFn: (q) => geocode(q, 1, 'gb'),
     onSuccess: (data) => {
       if (data?.results?.length) {
-        const { lat, lon, display_name, type } = data.results[0];
+        const { lat, lon, display_name, boundingbox } = data.results[0];
         const latNum = Number(lat);
         const lonNum = Number(lon);
 
-        // Pick zoom level based on result type so the map fits the searched area
-        const zoomByType = {
-          country: 6, state: 8, county: 10, city: 13,
-          town: 14, village: 15, suburb: 15, neighbourhood: 16,
-          postcode: 15, street: 17,
-        };
-        const zoom = zoomByType[type] ?? 13;
-
         setCenter(latNum, lonNum);
-        setZoom(zoom);
+        setBoundingBox(boundingbox ?? null);
+        incrementSearchId();
         setSelectedLocation({ lat: latNum, lon: lonNum, name: display_name || query });
         addRecentSearch({ query: display_name || query, lat: latNum, lon: lonNum, ts: Date.now() });
         setShowRecent(false);
@@ -57,6 +52,8 @@ export default function SearchBar() {
     setQuery(search.query);
     setCenter(search.lat, search.lon);
     setZoom(13);
+    setBoundingBox(null);
+    incrementSearchId();
     setSelectedLocation({ lat: search.lat, lon: search.lon, name: search.query });
     setShowRecent(false);
     setShowRecentSearches(false);
