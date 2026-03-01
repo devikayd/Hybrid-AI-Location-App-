@@ -35,6 +35,7 @@ venv.bak/
 .venv/
 
 *.md
+!README.md
 *.yml
 
 # Environment variables
