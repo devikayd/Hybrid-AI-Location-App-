@@ -15,7 +15,6 @@ export default function LocationDataList() {
   const [filterType, setFilterType] = useState('all');
   const [selectedItem, setSelectedItem] = useState(null);
   
-  // Get userId from sessionStorage
   const userId = React.useMemo(() => {
     let id = sessionStorage.getItem('userId');
     if (!id) {
@@ -27,7 +26,6 @@ export default function LocationDataList() {
 
   const queryClient = useQueryClient();
   
-  // Use shared location data hook 
   const { data, isLoading, error } = useLocationData();
   
   // Fetch recommendations
@@ -100,7 +98,6 @@ export default function LocationDataList() {
       setSelectedItem({ ...selectedItem, is_liked: !selectedItem.is_liked });
     }
     
-    // Then make the API call
     interactionMutation.mutate({ item, interactionType: 'like' });
   };
 
@@ -119,7 +116,6 @@ export default function LocationDataList() {
     setSelectedItem(null);
   };
 
-  // Format time ago for past events
   const formatTimeAgo = (hoursAgo) => {
     if (!hoursAgo && hoursAgo !== 0) return null;
     
@@ -135,7 +131,6 @@ export default function LocationDataList() {
     }
   };
 
-  // Format time ahead for upcoming events
   const formatTimeAhead = (hoursAhead) => {
     if (!hoursAhead && hoursAhead !== 0) return null;
     
@@ -318,14 +313,12 @@ export default function LocationDataList() {
     });
   }
 
-  // Filter items by selected type
-  const filteredItems = filterType === 'all' 
+  const filteredItems = filterType === 'all'
     ? allItems 
     : filterType === 'recommendations'
     ? allItems.filter(item => item.is_recommendation === true)
     : allItems.filter(item => item.type === filterType);
 
-  // Count items by type for display
   const counts = {
     events: events.length,
     pois: pois.length,

@@ -2,13 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMapStore } from '../stores/mapStore';
 import { sendChatMessage } from '../services/api';
 
-/**
- * ChatPanel - Conversational AI Interface
- *
- * Provides a chat interface for users to ask questions about locations.
- * Integrates with the backend chat API for intent detection and response generation.
- */
-
 const ChatPanel = () => {
   const [messages, setMessages] = useState([
     {

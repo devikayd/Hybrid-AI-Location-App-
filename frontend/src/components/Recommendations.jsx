@@ -16,7 +16,6 @@ export default function Recommendations() {
     return id;
   }, []);
 
-  // Fetch recommendations based on user interactions
   const { data: recommendationsData, isLoading, isError } = useQuery({
     queryKey: ['user-recommendations', center, userId],
     queryFn: () => getUserRecommendations(userId, {
@@ -33,7 +32,6 @@ export default function Recommendations() {
     return null;
   }
 
-  // Show loading state
   if (isLoading) {
     return (
       <div className="card">
@@ -43,7 +41,6 @@ export default function Recommendations() {
     );
   }
 
-  // Show error state
   if (isError) {
     return (
       <div className="card">
@@ -56,7 +53,6 @@ export default function Recommendations() {
   const recommendations = recommendationsData?.recommendations || [];
   const totalInteractions = recommendationsData?.based_on_interactions || 0;
 
-  // Don't show if no recommendations
   if (recommendations.length === 0) {
     return (
       <div className="card">
@@ -68,7 +64,6 @@ export default function Recommendations() {
     );
   }
 
-  // Helper function to get type color
   const getTypeColor = (type) => {
     const colors = {
       event: 'bg-blue-100 text-blue-800',
@@ -79,7 +74,6 @@ export default function Recommendations() {
     return colors[type] || 'bg-gray-100 text-gray-800';
   };
 
-  // Helper function to format match score
   const formatMatchScore = (score) => {
     return (score * 100).toFixed(0);
   };

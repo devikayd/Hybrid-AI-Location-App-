@@ -1,12 +1,5 @@
 """
-Feature Engineering Service
-
-What this service does:
-- Extracts features from cleaned data
-- Calculates numerical features for ML models
-- Normalizes and scales features
-- Stores features in training_data table
-- Prepares data for XGBoost model training
+Feature engineering pipeline — extracts, normalises, and stores ML features from location data.
 """
 
 import logging

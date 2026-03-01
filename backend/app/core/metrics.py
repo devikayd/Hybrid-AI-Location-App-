@@ -1,11 +1,6 @@
 """
-Metrics Collection Module for Evaluation
-
-This module provides comprehensive metrics collection for:
-1. System Performance: Response times, cache hits, API success rates
-2. ML Model Evaluation: R², RMSE, F1-Score, Precision@K
-
-Metrics are stored in-memory and can be exported via the /metrics endpoint.
+In-memory metrics collection — response times, cache hits, API success rates, ML eval scores.
+Exported via the /metrics endpoint.
 """
 
 import time
@@ -276,7 +271,7 @@ class MetricsCollector:
 metrics_collector = MetricsCollector()
 
 
-# ==================== Decorators ====================
+# decorators
 
 def track_latency(endpoint: str):
     """Decorator to track endpoint latency"""

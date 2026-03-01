@@ -1,18 +1,6 @@
 """
-Circuit Breaker Pattern Implementation for External API Resilience
-
-This module implements the circuit breaker pattern to protect against cascading failures
-when external APIs become unavailable or slow. The circuit breaker has three states:
-
-- CLOSED: Normal operation, requests pass through
-- OPEN: API is failing, requests are rejected immediately (fast failure)
-- HALF_OPEN: Testing if API has recovered, limited requests allowed
-
-Benefits:
-- Fast failure when API is down (no waiting for timeouts)
-- Automatic recovery testing
-- Prevents resource exhaustion from retrying failed APIs
-- Graceful degradation of service
+Circuit breaker for protecting external API calls from cascading failures.
+Implements CLOSED/OPEN/HALF_OPEN states with configurable failure thresholds.
 """
 
 import asyncio
@@ -66,21 +54,7 @@ class CircuitBreakerState:
 
 
 class CircuitBreaker:
-    """
-    Circuit breaker for protecting external API calls.
-
-    Usage:
-        breaker = CircuitBreaker("uk_police_api")
-
-        async def fetch_data():
-            async with breaker:
-                return await make_api_call()
-
-        # Or use as decorator:
-        @breaker.protect
-        async def fetch_data():
-            return await make_api_call()
-    """
+    """Wraps async calls to an external API; opens circuit after repeated failures."""
 
     def __init__(
         self,
@@ -245,14 +219,7 @@ class CircuitBreaker:
         return False
 
     def protect(self, func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
-        """
-        Decorator to protect an async function with circuit breaker.
-
-        Usage:
-            @breaker.protect
-            async def fetch_data():
-                return await api_call()
-        """
+        """Decorator to protect an async function with circuit breaker."""
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
             async with self:
@@ -266,21 +233,7 @@ class CircuitBreaker:
         fallback: Optional[Callable[..., T]] = None,
         **kwargs
     ) -> T:
-        """
-        Execute a function with circuit breaker protection.
-
-        Args:
-            func: Async function to execute
-            *args: Positional arguments for func
-            fallback: Optional fallback function if circuit is open
-            **kwargs: Keyword arguments for func
-
-        Returns:
-            Result from func or fallback
-
-        Raises:
-            CircuitOpenError: If circuit is open and no fallback provided
-        """
+        """Execute a function with circuit breaker protection, using fallback if circuit is open."""
         try:
             async with self:
                 return await func(*args, **kwargs)
@@ -309,16 +262,7 @@ def get_circuit_breaker(
     name: str,
     config: Optional[CircuitBreakerConfig] = None
 ) -> CircuitBreaker:
-    """
-    Get or create a circuit breaker for an API.
-
-    Args:
-        name: Unique name for the API (e.g., "uk_police", "ticketmaster")
-        config: Optional configuration override
-
-    Returns:
-        CircuitBreaker instance
-    """
+    """Get or create a named circuit breaker."""
     if name not in _circuit_breakers:
         _circuit_breakers[name] = CircuitBreaker(name, config)
     return _circuit_breakers[name]

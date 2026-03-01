@@ -1,12 +1,5 @@
 """
-Chat Service - Core Conversational AI Logic
-
-Implements:
-1. Intent Detection - Classify user queries
-2. Action Execution - Fetch relevant data
-3. Response Generation - Create natural language responses
-
-Uses existing services for data and LLM for generation.
+Conversational AI logic — intent detection, data fetching, and response generation.
 """
 
 import logging

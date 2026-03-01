@@ -1,14 +1,6 @@
 """
-Recommendation System Enhancements
-
-Implements:
-- Collaborative filtering (SVD matrix factorization)
-- Hybrid recommendation (content + collaborative + context)
-- Implicit feedback weighting (recency, interaction strength)
-- Contextual bandits (explore-exploit for cold start)
-- Diversity-aware re-ranking
-
-All components have lightweight implementations suitable for resource-constrained environments.
+Recommendation enhancements — collaborative filtering, hybrid scoring, implicit feedback weighting,
+contextual bandits for cold start, and diversity-aware re-ranking.
 """
 
 import logging
@@ -65,17 +57,6 @@ class ImplicitFeedbackWeighter:
         interaction_time: datetime,
         current_time: Optional[datetime] = None
     ) -> float:
-        """
-        Calculate weight for a single interaction.
-
-        Args:
-            interaction_type: Type of interaction (like, save, view, etc.)
-            interaction_time: When the interaction occurred
-            current_time: Reference time (defaults to now)
-
-        Returns:
-            Float weight between 0 and 1
-        """
         if current_time is None:
             current_time = datetime.utcnow()
 
@@ -93,16 +74,6 @@ class ImplicitFeedbackWeighter:
         interactions: List[Dict[str, Any]],
         current_time: Optional[datetime] = None
     ) -> Dict[str, float]:
-        """
-        Aggregate weights for items based on all interactions.
-
-        Args:
-            interactions: List of interaction dicts with item_id, interaction_type, created_at
-            current_time: Reference time
-
-        Returns:
-            Dict mapping item_id to aggregated weight
-        """
         if current_time is None:
             current_time = datetime.utcnow()
 
@@ -140,11 +111,6 @@ class CollaborativeFilter:
     """
 
     def __init__(self, n_factors: int = 20, min_interactions: int = 5):
-        """
-        Args:
-            n_factors: Number of latent factors for SVD
-            min_interactions: Minimum interactions needed to use collaborative filtering
-        """
         self.n_factors = n_factors
         self.min_interactions = min_interactions
 
@@ -158,15 +124,6 @@ class CollaborativeFilter:
         self._fitted = False
 
     def fit(self, interactions: List[Dict[str, Any]]) -> bool:
-        """
-        Fit the collaborative filter on interaction data.
-
-        Args:
-            interactions: List of dicts with user_id, item_id, weight (optional)
-
-        Returns:
-            True if fitting succeeded, False otherwise
-        """
         if not NUMPY_AVAILABLE or not SCIPY_AVAILABLE:
             logger.warning("NumPy/SciPy not available, collaborative filtering disabled")
             return False

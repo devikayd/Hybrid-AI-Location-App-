@@ -20,7 +20,6 @@ export default function SidePanel() {
   const { data: summary, error: summaryError, isLoading: summaryLoading } = useSummary();
   const { data: scores, error: scoresError, isLoading: scoresLoading } = useScores();
   
-  // Use shared location data hook
   const { data: locationData } = useLocationData();
 
   // Extract counts from location data - use same logic as LocationDataList

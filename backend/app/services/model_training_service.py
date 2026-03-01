@@ -1,12 +1,6 @@
 """
-Model Training Service
-
-Supports two training modes:
-1. Standard training (XGBoost with fixed parameters)
-2. Enhanced training with:
-   - Spatial Cross-Validation (honest evaluation)
-   - Hyperparameter Tuning (Optuna)
-   - Model Ensemble (XGBoost + LightGBM + CatBoost)
+XGBoost model training for safety and popularity scores.
+Supports standard training and enhanced training (spatial CV, Optuna tuning, ensemble).
 """
 
 import logging
@@ -402,15 +396,7 @@ class ModelTrainingService:
         y_test: np.ndarray,
         y_test_pred: np.ndarray
     ) -> Dict[str, float]:
-        """
-        Calculate model evaluation metrics
-        
-        Metrics calculated:
-        - MSE (Mean Squared Error): Lower is better
-        - MAE (Mean Absolute Error): Lower is better
-        - R² (R-squared): Higher is better (0-1, 1 = perfect)
-        - RMSE (Root Mean Squared Error): Lower is better
-        """
+        """Calculate MSE, MAE, R², and RMSE for train and test sets."""
         metrics = {
             'train_mse': float(mean_squared_error(y_train, y_train_pred)),
             'train_mae': float(mean_absolute_error(y_train, y_train_pred)),
@@ -438,9 +424,7 @@ class ModelTrainingService:
         model_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
         return str(model_files[0])
 
-    # =========================================================================
-    # ENHANCED TRAINING METHODS (Scoring Model Improvements)
-    # =========================================================================
+    # enhanced training methods
 
     async def train_enhanced_safety_model(
         self,
@@ -450,22 +434,7 @@ class ModelTrainingService:
         n_tuning_trials: int = 50,
         min_samples: int = 50
     ) -> Dict[str, Any]:
-        """
-        Train safety model with enhancements:
-        - Spatial Cross-Validation (prevents spatial data leakage)
-        - Hyperparameter Tuning (Optuna Bayesian optimization)
-        - Model Ensemble (XGBoost + LightGBM + CatBoost)
-
-        Args:
-            use_spatial_cv: Use spatial CV for honest evaluation
-            use_tuning: Use Optuna for hyperparameter tuning
-            use_ensemble: Use ensemble instead of single model
-            n_tuning_trials: Number of Optuna trials
-            min_samples: Minimum training samples required
-
-        Returns:
-            Dict with model, metrics, and enhancement details
-        """
+        """Train safety model with spatial CV, Optuna tuning, and optional ensemble."""
         if not ENHANCEMENTS_AVAILABLE:
             raise RuntimeError(
                 "Scoring enhancements not available. "

@@ -1,17 +1,6 @@
 """
-NLP Enhancements Module
-
-This module contains advanced NLP improvements:
-
-1. Topic Modelling - Extract themes from news articles using BERTopic
-2. Text Embeddings - Semantic similarity using sentence-transformers
-3. Aspect-Based Sentiment - Sentiment per aspect (safety, amenities, etc.)
-4. Temporal Sentiment Trends - Track sentiment changes over time
-5. Enhanced Entity Extraction - Better NER with context
-
-Author: MSc Data Science Project
-Note: Heavy dependencies (BERTopic, sentence-transformers) are optional
-      with lightweight fallbacks for resource-constrained environments.
+NLP enhancements — aspect sentiment, embeddings, topic modelling, temporal trends, entity extraction.
+Heavy deps (BERTopic, sentence-transformers) are optional with lightweight fallbacks.
 """
 
 import logging
@@ -23,10 +12,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# OPTIONAL HEAVY DEPENDENCIES (with fallbacks)
-# =============================================================================
-
+# optional heavy deps — fall back gracefully if not installed
 try:
     from sentence_transformers import SentenceTransformer
     SENTENCE_TRANSFORMERS_AVAILABLE = True
@@ -59,23 +45,8 @@ except ImportError:
     NLTK_AVAILABLE = False
 
 
-# =============================================================================
-# 1. ASPECT-BASED SENTIMENT ANALYSIS
-# =============================================================================
-
 class AspectSentimentAnalyzer:
-    """
-    Aspect-Based Sentiment Analysis
-
-    Purpose:
-        Analyzes sentiment for specific aspects of a location like safety,
-        amenities, transport, etc. instead of overall sentiment.
-
-    Why it matters:
-        - "Great restaurants but unsafe at night" has mixed sentiment
-        - Overall sentiment would average this out
-        - Aspect sentiment captures nuance per category
-    """
+    """Sentiment per aspect (safety, amenities, transport etc.) rather than overall."""
 
     # Define aspects and their associated keywords
     ASPECTS = {
@@ -127,15 +98,7 @@ class AspectSentimentAnalyzer:
                 logger.warning(f"VADER initialization failed: {e}")
 
     def analyze(self, text: str) -> Dict[str, Any]:
-        """
-        Analyze sentiment for each aspect in the text.
-
-        Args:
-            text: Input text to analyze
-
-        Returns:
-            Dict with aspect scores and overall analysis
-        """
+        """Returns sentiment scores per aspect plus an overall weighted score."""
         if not text:
             return self._empty_result()
 
@@ -263,34 +226,10 @@ class AspectSentimentAnalyzer:
         }
 
 
-# =============================================================================
-# 2. TEXT EMBEDDINGS & SEMANTIC SIMILARITY
-# =============================================================================
-
 class TextEmbedder:
-    """
-    Text Embeddings for Semantic Similarity
-
-    Purpose:
-        Creates dense vector representations of text for semantic search
-        and similarity comparison.
-
-    Why it matters:
-        - "Is it safe here?" and "Is this area dangerous?" are semantically related
-        - Keyword matching would miss this connection
-        - Embeddings capture semantic meaning
-
-    Note:
-        Uses sentence-transformers if available, falls back to TF-IDF.
-    """
+    """Semantic text embeddings using sentence-transformers, falls back to TF-IDF."""
 
     def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
-        """
-        Initialize embedder.
-
-        Args:
-            model_name: sentence-transformers model (small model for low memory)
-        """
         self.model = None
         self.model_name = model_name
         self.tfidf = None
@@ -318,15 +257,6 @@ class TextEmbedder:
         return False
 
     def embed(self, texts: List[str]) -> Optional[np.ndarray]:
-        """
-        Generate embeddings for texts.
-
-        Args:
-            texts: List of text strings
-
-        Returns:
-            Numpy array of embeddings (n_texts, embedding_dim)
-        """
         if not texts:
             return None
 
@@ -348,16 +278,7 @@ class TextEmbedder:
         return None
 
     def similarity(self, text1: str, text2: str) -> float:
-        """
-        Calculate semantic similarity between two texts.
-
-        Args:
-            text1: First text
-            text2: Second text
-
-        Returns:
-            Similarity score (0-1)
-        """
+        """Cosine similarity between two texts (0-1)."""
         embeddings = self.embed([text1, text2])
         if embeddings is None:
             return self._simple_similarity(text1, text2)
@@ -376,17 +297,6 @@ class TextEmbedder:
         return float(max(0, min(1, dot / (norm1 * norm2))))
 
     def find_similar(self, query: str, candidates: List[str], top_k: int = 5) -> List[Tuple[int, float]]:
-        """
-        Find most similar texts to query.
-
-        Args:
-            query: Query text
-            candidates: List of candidate texts
-            top_k: Number of results to return
-
-        Returns:
-            List of (index, similarity_score) tuples
-        """
         if not candidates:
             return []
 
@@ -429,34 +339,10 @@ class TextEmbedder:
         return len(intersection) / len(union)
 
 
-# =============================================================================
-# 3. TOPIC MODELLING
-# =============================================================================
-
 class TopicModeler:
-    """
-    Topic Modelling for News/Text Analysis
-
-    Purpose:
-        Automatically discovers themes/topics in news articles
-        to understand what's being discussed about a location.
-
-    Why it matters:
-        - Identifies trending topics (development, crime spree, events)
-        - Groups similar articles
-        - Shows location-specific themes
-
-    Note:
-        Uses BERTopic if available, falls back to LDA.
-    """
+    """Topic extraction from news articles — BERTopic if available, falls back to LDA."""
 
     def __init__(self, n_topics: int = 10):
-        """
-        Initialize topic modeler.
-
-        Args:
-            n_topics: Number of topics to extract
-        """
         self.n_topics = n_topics
         self.model = None
         self.use_bertopic = False
@@ -504,15 +390,6 @@ class TopicModeler:
         return False
 
     def fit_transform(self, texts: List[str]) -> Dict[str, Any]:
-        """
-        Extract topics from texts.
-
-        Args:
-            texts: List of text documents
-
-        Returns:
-            Dict with topics, assignments, and metadata
-        """
         if len(texts) < 5:
             return {
                 'topics': [],
@@ -638,26 +515,10 @@ class TopicModeler:
         }
 
 
-# =============================================================================
-# 4. TEMPORAL SENTIMENT TRENDS
-# =============================================================================
-
 class TemporalSentimentTracker:
-    """
-    Temporal Sentiment Trend Analysis
-
-    Purpose:
-        Tracks how sentiment about a location changes over time,
-        enabling trend detection and alerts.
-
-    Why it matters:
-        - Detect improving/declining areas
-        - Identify sentiment spikes (events, incidents)
-        - Show historical context
-    """
+    """Tracks how sentiment about a location changes over time."""
 
     def __init__(self):
-        """Initialize tracker."""
         self.vader = None
         if NLTK_AVAILABLE:
             try:
@@ -672,18 +533,6 @@ class TemporalSentimentTracker:
         text_field: str = 'title',
         window_days: int = 7
     ) -> Dict[str, Any]:
-        """
-        Analyze sentiment trends over time.
-
-        Args:
-            articles: List of article dicts with date and text fields
-            date_field: Name of date field in articles
-            text_field: Name of text field to analyze
-            window_days: Rolling window size in days
-
-        Returns:
-            Dict with trend data and analysis
-        """
         if not articles:
             return self._empty_result()
 
@@ -866,23 +715,8 @@ class TemporalSentimentTracker:
         }
 
 
-# =============================================================================
-# 5. ENHANCED ENTITY EXTRACTION
-# =============================================================================
-
 class EnhancedEntityExtractor:
-    """
-    Enhanced Named Entity Extraction
-
-    Purpose:
-        Extracts and categorizes entities with location relevance scoring.
-
-    Improvements over basic NER:
-        - Location-specific entity types
-        - Relevance scoring
-        - Entity deduplication
-        - Context extraction
-    """
+    """NER with location-relevant entity types, deduplication, and context extraction."""
 
     # Location-relevant entity types
     LOCATION_ENTITIES = {
@@ -895,7 +729,6 @@ class EnhancedEntityExtractor:
     }
 
     def __init__(self):
-        """Initialize extractor."""
         self.nlp = None
         try:
             import spacy
@@ -907,16 +740,6 @@ class EnhancedEntityExtractor:
             pass
 
     def extract(self, text: str, include_context: bool = True) -> Dict[str, Any]:
-        """
-        Extract entities from text.
-
-        Args:
-            text: Input text
-            include_context: Include surrounding context for each entity
-
-        Returns:
-            Dict with entities grouped by type
-        """
         if not text:
             return {'entities': {}, 'count': 0}
 
@@ -993,24 +816,10 @@ class EnhancedEntityExtractor:
         }
 
 
-# =============================================================================
-# MAIN INTERFACE
-# =============================================================================
-
 class NLPEnhancements:
-    """
-    Main interface for all NLP enhancements.
-
-    Provides unified access to:
-    - Aspect-based sentiment analysis
-    - Text embeddings & similarity
-    - Topic modelling
-    - Temporal sentiment trends
-    - Enhanced entity extraction
-    """
+    """Unified access to all NLP enhancement components."""
 
     def __init__(self):
-        """Initialize all enhancement components."""
         self.aspect_analyzer = AspectSentimentAnalyzer()
         self.embedder = TextEmbedder()
         self.topic_modeler = TopicModeler()
@@ -1019,12 +828,6 @@ class NLPEnhancements:
         self._initialized = False
 
     def initialize(self) -> Dict[str, bool]:
-        """
-        Initialize all components.
-
-        Returns:
-            Dict showing which components initialized successfully
-        """
         status = {
             'aspect_sentiment': True,  # Always available (has fallbacks)
             'embeddings': self.embedder.initialize(),
@@ -1038,15 +841,6 @@ class NLPEnhancements:
         return status
 
     def analyze_text(self, text: str) -> Dict[str, Any]:
-        """
-        Run all analyses on a single text.
-
-        Args:
-            text: Input text
-
-        Returns:
-            Comprehensive analysis results
-        """
         if not self._initialized:
             self.initialize()
 
@@ -1061,17 +855,6 @@ class NLPEnhancements:
         text_field: str = 'title',
         date_field: str = 'published_at'
     ) -> Dict[str, Any]:
-        """
-        Run full analysis on a collection of articles.
-
-        Args:
-            articles: List of article dicts
-            text_field: Field containing text to analyze
-            date_field: Field containing date
-
-        Returns:
-            Comprehensive analysis including topics and trends
-        """
         if not self._initialized:
             self.initialize()
 
@@ -1148,12 +931,8 @@ class NLPEnhancements:
         }
 
 
-# =============================================================================
-# UTILITY FUNCTIONS
-# =============================================================================
-
 def check_nlp_dependencies() -> Dict[str, bool]:
-    """Check which NLP dependencies are available."""
+    """Returns which optional NLP deps are installed."""
     return {
         'sentence_transformers': SENTENCE_TRANSFORMERS_AVAILABLE,
         'bertopic': BERTOPIC_AVAILABLE,

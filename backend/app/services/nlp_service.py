@@ -329,9 +329,7 @@ class NLPService:
             logger.warning(f"Text summarization failed: {e}")
             return text[:200] + "..." if len(text) > 200 else text
 
-    # =========================================================================
-    # ENHANCED NLP METHODS (NLP Improvements)
-    # =========================================================================
+    # enhanced NLP methods
 
     async def analyze_aspect_sentiment(self, text: str) -> Dict[str, Any]:
         """

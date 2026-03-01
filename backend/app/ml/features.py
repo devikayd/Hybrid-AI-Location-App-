@@ -1,11 +1,5 @@
 """
-Feature Calculation Functions for ML Models
-
-What this module does:
-- Calculates features from cleaned data
-- Extracts numerical features for ML models
-- Normalizes and scales features
-- Prepares features for XGBoost training
+Feature calculation for ML models — crime, POI, news, and event features.
 """
 
 import logging
@@ -21,47 +15,30 @@ logger = logging.getLogger(__name__)
 
 
 class FeatureCalculator:
-    """
-    Feature Calculator Class
-    
-    Purpose:
-    - Calculate features from cleaned data
-    - Extract numerical features for ML models
-    - Normalize and scale features
-    """
-    
+    """Calculates and normalizes features from cleaned location data for ML models."""
+
     # Essential amenities for safety scoring
     ESSENTIAL_AMENITIES = {
-        'hospital', 'pharmacy', 'police', 'fire_station', 
+        'hospital', 'pharmacy', 'police', 'fire_station',
         'school', 'university', 'library', 'post_office',
         'bank', 'atm', 'supermarket', 'fuel'
     }
-    
+
     # Violent crime categories
     VIOLENT_CRIMES = {
         'violent-crime', 'robbery', 'assault', 'weapons',
         'homicide', 'murder', 'manslaughter'
     }
-    
+
     def __init__(self):
-        """Initialize feature calculator"""
-        self.scaler = StandardScaler()  # For feature scaling
-        self.min_max_scaler = MinMaxScaler()  # For normalization (0-1)
-    
+        self.scaler = StandardScaler()
+        self.min_max_scaler = MinMaxScaler()
+
     def calculate_crime_features(
-        self, 
+        self,
         crime_data: pd.DataFrame,
         radius_km: float = 5.0
     ) -> Dict[str, float]:
-        """
-        Calculate crime-related features
-        
-        What it calculates:
-        - Crime density (crimes per km²)
-        - Violent crime ratio (violent crimes / total crimes)
-        - Crime category distribution
-        - Recent crime trend
-        """
         if crime_data.empty:
             return {
                 'crime_count': 0,
@@ -70,41 +47,32 @@ class FeatureCalculator:
                 'crime_category_diversity': 0.0,
                 'recent_crime_ratio': 0.0
             }
-        
-        # Calculate area (km²) - approximate circle area
+
         area_km2 = math.pi * (radius_km ** 2)
-        
-        # Crime count
         crime_count = len(crime_data)
-        
-        # Crime density (crimes per km²)
         crime_density = crime_count / area_km2 if area_km2 > 0 else 0.0
-        
-        # Violent crime ratio
+
         violent_crimes = crime_data[
             crime_data['category'].str.lower().isin([c.lower() for c in self.VIOLENT_CRIMES])
         ]
         violent_crime_ratio = len(violent_crimes) / crime_count if crime_count > 0 else 0.0
-        
-        # Crime category diversity (Shannon diversity index)
+
+        # Shannon diversity index for crime categories
         category_counts = crime_data['category'].value_counts()
         if len(category_counts) > 0:
             proportions = category_counts / crime_count
             crime_category_diversity = -sum(proportions * np.log(proportions + 1e-10))
         else:
             crime_category_diversity = 0.0
-        
-        # Recent crime ratio (last 3 months vs all)
-        # Assuming 'month' column exists in YYYY-MM format
+
         if 'month' in crime_data.columns:
             from datetime import datetime
             current_month = datetime.now().strftime('%Y-%m')
-            # Simple check: count recent months (last 3)
-            recent_crimes = len(crime_data)  # Simplified - would need date parsing
+            recent_crimes = len(crime_data)  # simplified
             recent_crime_ratio = recent_crimes / crime_count if crime_count > 0 else 0.0
         else:
             recent_crime_ratio = 0.0
-        
+
         return {
             'crime_count': int(crime_count),
             'crime_density': float(crime_density),
@@ -112,21 +80,12 @@ class FeatureCalculator:
             'crime_category_diversity': float(crime_category_diversity),
             'recent_crime_ratio': float(recent_crime_ratio)
         }
-    
+
     def calculate_poi_features(
         self,
         poi_data: pd.DataFrame,
         radius_km: float = 5.0
     ) -> Dict[str, float]:
-        """
-        Calculate POI-related features
-        
-        What it calculates:
-        - POI density (POIs per km²)
-        - POI diversity (Shannon diversity index)
-        - Essential amenities ratio
-        - Amenity type distribution
-        """
         if poi_data.empty:
             return {
                 'poi_count': 0,
@@ -135,17 +94,11 @@ class FeatureCalculator:
                 'essential_amenities_ratio': 0.0,
                 'amenity_type_count': 0
             }
-        
-        # Calculate area
+
         area_km2 = math.pi * (radius_km ** 2)
-        
-        # POI count
         poi_count = len(poi_data)
-        
-        # POI density
         poi_density = poi_count / area_km2 if area_km2 > 0 else 0.0
-        
-        # POI diversity (Shannon diversity index)
+
         if 'amenity' in poi_data.columns:
             amenity_counts = poi_data['amenity'].value_counts()
             if len(amenity_counts) > 0:
@@ -157,8 +110,7 @@ class FeatureCalculator:
         else:
             poi_diversity = 0.0
             amenity_type_count = 0
-        
-        # Essential amenities ratio
+
         if 'amenity' in poi_data.columns:
             essential_count = poi_data[
                 poi_data['amenity'].str.lower().isin([a.lower() for a in self.ESSENTIAL_AMENITIES])
@@ -166,7 +118,7 @@ class FeatureCalculator:
             essential_amenities_ratio = essential_count / poi_count if poi_count > 0 else 0.0
         else:
             essential_amenities_ratio = 0.0
-        
+
         return {
             'poi_count': int(poi_count),
             'poi_density': float(poi_density),
@@ -174,20 +126,11 @@ class FeatureCalculator:
             'essential_amenities_ratio': float(essential_amenities_ratio),
             'amenity_type_count': int(amenity_type_count)
         }
-    
+
     def calculate_news_features(
         self,
         news_data: pd.DataFrame
     ) -> Dict[str, float]:
-        """
-        Calculate news-related features
-        
-        What it calculates:
-        - News coverage frequency (articles per day)
-        - Average sentiment score
-        - Positive/negative sentiment ratio
-        - News source diversity
-        """
         if news_data.empty:
             return {
                 'news_count': 0,
@@ -196,19 +139,14 @@ class FeatureCalculator:
                 'news_sentiment_positive_ratio': 0.0,
                 'news_source_diversity': 0.0
             }
-        
-        # News count
+
         news_count = len(news_data)
-        
-        # News coverage frequency (articles per day, assuming 30-day period)
-        news_coverage_frequency = news_count / 30.0
-        
-        # Average sentiment
+        news_coverage_frequency = news_count / 30.0  # articles per day over 30-day window
+
         if 'sentiment_score' in news_data.columns:
             sentiments = news_data['sentiment_score'].dropna()
             if len(sentiments) > 0:
                 news_sentiment_avg = float(sentiments.mean())
-                # Positive sentiment ratio (sentiment > 0.1)
                 positive_count = (sentiments > 0.1).sum()
                 news_sentiment_positive_ratio = positive_count / len(sentiments)
             else:
@@ -217,8 +155,7 @@ class FeatureCalculator:
         else:
             news_sentiment_avg = 0.0
             news_sentiment_positive_ratio = 0.0
-        
-        # News source diversity
+
         if 'source_name' in news_data.columns:
             source_counts = news_data['source_name'].value_counts()
             if len(source_counts) > 0:
@@ -228,7 +165,7 @@ class FeatureCalculator:
                 news_source_diversity = 0.0
         else:
             news_source_diversity = 0.0
-        
+
         return {
             'news_count': int(news_count),
             'news_coverage_frequency': float(news_coverage_frequency),
@@ -236,20 +173,11 @@ class FeatureCalculator:
             'news_sentiment_positive_ratio': float(news_sentiment_positive_ratio),
             'news_source_diversity': float(news_source_diversity)
         }
-    
+
     def calculate_event_features(
         self,
         event_data: pd.DataFrame
     ) -> Dict[str, float]:
-        """
-        Calculate event-related features
-        
-        What it calculates:
-        - Event count
-        - Free event ratio
-        - Event diversity (categories)
-        - Event frequency
-        """
         if event_data.empty:
             return {
                 'event_count': 0,
@@ -257,34 +185,30 @@ class FeatureCalculator:
                 'event_diversity': 0.0,
                 'event_frequency': 0.0
             }
-        
-        # Event count
+
         event_count = len(event_data)
-        
-        # Free event ratio
+
         if 'is_free' in event_data.columns:
             free_count = event_data['is_free'].sum()
             free_event_ratio = free_count / event_count if event_count > 0 else 0.0
         else:
             free_event_ratio = 0.0
-        
-        # Event diversity (categories)
+
         if 'category' in event_data.columns:
             category_counts = event_data['category'].value_counts()
             event_diversity = len(category_counts)
         else:
             event_diversity = 0.0
-        
-        # Event frequency (events per day, assuming 30-day period)
-        event_frequency = event_count / 30.0
-        
+
+        event_frequency = event_count / 30.0  # events per day over 30-day window
+
         return {
             'event_count': int(event_count),
             'free_event_ratio': float(free_event_ratio),
             'event_diversity': int(event_diversity),
             'event_frequency': float(event_frequency)
         }
-    
+
     def combine_features(
         self,
         crime_features: Dict[str, float],
@@ -292,78 +216,44 @@ class FeatureCalculator:
         news_features: Dict[str, float],
         event_features: Dict[str, float]
     ) -> Dict[str, float]:
-        """
-        Combine all features into single feature vector
-        
-        What it does:
-        - Merges features from all data types
-        - Creates complete feature vector for ML models
-        - Ensures all features are present (fills missing with 0)
-        """
-        # Combine all features
         combined = {}
         combined.update(crime_features)
         combined.update(poi_features)
         combined.update(news_features)
         combined.update(event_features)
-        
         return combined
-    
+
     def normalize_features(
         self,
         features: Dict[str, float],
         feature_ranges: Optional[Dict[str, tuple]] = None
     ) -> Dict[str, float]:
-        """
-        Normalize features to 0-1 range
-        
-        What it does:
-        - Scales features to 0-1 range
-        - Uses Min-Max normalization
-        - Handles missing feature ranges
-        """
+        """Min-max normalize features to 0-1. Uses default ranges if none provided."""
         normalized = {}
-        
-        # Default ranges (if not provided)
+
         if feature_ranges is None:
             feature_ranges = {
-                'crime_density': (0, 10),  # Max 10 crimes per km²
+                'crime_density': (0, 10),
                 'violent_crime_ratio': (0, 1),
-                'poi_density': (0, 100),  # Max 100 POIs per km²
-                'poi_diversity': (0, 5),  # Max diversity index
+                'poi_density': (0, 100),
+                'poi_diversity': (0, 5),
                 'news_sentiment_avg': (-1, 1),
-                'news_coverage_frequency': (0, 10),  # Max 10 articles per day
+                'news_coverage_frequency': (0, 10),
             }
-        
+
         for key, value in features.items():
             if key in feature_ranges:
                 min_val, max_val = feature_ranges[key]
                 if max_val > min_val:
-                    normalized[key] = (value - min_val) / (max_val - min_val)
-                    # Clamp to 0-1
-                    normalized[key] = max(0.0, min(1.0, normalized[key]))
+                    normalized[key] = max(0.0, min(1.0, (value - min_val) / (max_val - min_val)))
                 else:
                     normalized[key] = 0.0
             else:
-                # For features without ranges, use value as-is (if already 0-1)
-                # Or apply simple normalization
-                if isinstance(value, (int, float)):
-                    normalized[key] = float(value)
-                else:
-                    normalized[key] = 0.0
-        
+                normalized[key] = float(value) if isinstance(value, (int, float)) else 0.0
+
         return normalized
-    
+
     def get_feature_names(self, model_type: str = "safety") -> List[str]:
-        """
-        Get feature names for a specific model type
-        
-        Parameters:
-        - model_type: "safety" or "popularity"
-        
-        Returns:
-        - List of feature names
-        """
         if model_type == "safety":
             return [
                 'crime_count',
@@ -393,22 +283,14 @@ class FeatureCalculator:
                 'news_source_diversity'
             ]
         else:
-            # All features
             return [
                 'crime_count', 'crime_density', 'violent_crime_ratio',
                 'crime_category_diversity', 'recent_crime_ratio',
                 'poi_count', 'poi_density', 'poi_diversity',
                 'essential_amenities_ratio', 'amenity_type_count',
-                'event_count', 'free_event_ratio', 'event_diversity',
-                'event_frequency',
-                'news_count', 'news_coverage_frequency',
-                'news_sentiment_avg', 'news_sentiment_positive_ratio',
-                'news_source_diversity'
+                'news_count', 'news_coverage_frequency', 'news_source_diversity',
+                'event_count', 'free_event_ratio', 'event_diversity', 'event_frequency'
             ]
 
 
-# Global feature calculator instance
 feature_calculator = FeatureCalculator()
-
-
-

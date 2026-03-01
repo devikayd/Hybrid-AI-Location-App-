@@ -206,9 +206,7 @@ class TripPlannerService:
         logger.info(f"Trip plan generated: {len(stops)} stops near {lat},{lon}")
         return response
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
+    # private helpers
 
     def _get_candidates(self, location_data: LocationDataResponse) -> list[LocationItem]:
         """

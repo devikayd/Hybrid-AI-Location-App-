@@ -1,11 +1,5 @@
 """
-Feature Engineering Router
-
-Endpoints:
-- POST /api/v1/features/extract: Extract features for a location
-- POST /api/v1/features/batch: Extract features for multiple locations
-- POST /api/v1/features/from-database: Extract features from all cleaned data
-- GET /api/v1/features/stats: Get feature engineering statistics
+Feature engineering API endpoints.
 """
 
 import logging
@@ -69,19 +63,7 @@ class BatchExtractionResponse(BaseModel):
 async def extract_features_for_location(
     request: LocationRequest
 ):
-    """
-    Extract features for a specific location
-    
-    Example:
-    ```json
-    {
-        "lat": 51.5074,
-        "lon": -0.1278,
-        "radius_km": 5.0,
-        "location_name": "London, UK"
-    }
-    ```
-    """
+    """Extract ML features for a single lat/lon location."""
     try:
         logger.info(f"Extracting features for location: {request.lat}, {request.lon}")
         
@@ -116,34 +98,7 @@ async def extract_features_for_location(
 async def extract_features_batch(
     request: BatchLocationRequest
 ):
-    """
-    Extract features for multiple locations
-    
-    What it does:
-    - Processes multiple locations
-    - Extracts features for each
-    - Stores in training_data table
-    
-    Parameters:
-    - locations: List of {lat, lon} dictionaries
-    - radius_km: Search radius
-    - limit: Maximum locations to process
-    
-    Returns:
-    - Batch processing statistics
-    
-    Example:
-    ```json
-    {
-        "locations": [
-            {"lat": 51.5074, "lon": -0.1278},
-            {"lat": 40.7128, "lon": -74.0060}
-        ],
-        "radius_km": 5.0,
-        "limit": 100
-    }
-    ```
-    """
+    """Extract ML features for a list of lat/lon locations."""
     try:
         logger.info(f"Extracting features for {len(request.locations)} locations")
         
@@ -181,30 +136,7 @@ async def extract_features_batch(
 async def extract_features_from_database(
     request: DatabaseExtractionRequest
 ):
-    """
-    Extract features from all cleaned data in database
-    
-    What it does:
-    1. Finds all unique locations in cleaned data
-    2. Groups by spatial grid
-    3. Extracts features for each grid cell
-    4. Stores in training_data table
-    
-    Parameters:
-    - grid_size_km: Size of spatial grid cells (km)
-    - limit: Maximum locations to process
-    
-    Returns:
-    - Extraction statistics
-    
-    Example:
-    ```json
-    {
-        "grid_size_km": 1.0,
-        "limit": 1000
-    }
-    ```
-    """
+    """Find unique locations in cleaned DB data and extract features for each grid cell."""
     try:
         logger.info(f"Extracting features from database (grid_size={request.grid_size_km}km)")
         
@@ -233,12 +165,7 @@ async def extract_features_from_database(
 
 @router.get("/stats", response_model=Dict[str, Any])
 async def get_feature_engineering_stats():
-    """
-    Get feature engineering statistics
-    
-    Returns:
-    - Current statistics (locations processed, features extracted, etc.)
-    """
+    """Get feature engineering statistics (locations processed, features extracted, etc.)."""
     try:
         stats = feature_engineering_service.get_stats()
         return {

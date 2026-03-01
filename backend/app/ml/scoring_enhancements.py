@@ -1,13 +1,5 @@
 """
-Scoring Model Enhancements
-
-This module contains three key improvements for safety/popularity scoring models:
-
-1. Spatial Cross-Validation - Prevents spatial data leakage for honest evaluation
-2. Hyperparameter Tuning - Uses Optuna for Bayesian optimization
-3. Model Ensemble - Combines multiple models for robust predictions
-
-Author: MSc Data Science Project
+Scoring model improvements — spatial CV, Optuna hyperparameter tuning, and model ensemble.
 """
 
 import logging
@@ -47,34 +39,10 @@ except (ImportError, OSError):
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# 1. SPATIAL CROSS-VALIDATION
-# =============================================================================
-
 class SpatialBlockCV(BaseCrossValidator):
-    """
-    Spatial Block Cross-Validation
-
-    Purpose:
-        Prevents spatial data leakage by splitting data geographically
-        instead of randomly. This gives honest, realistic performance metrics.
-
-    Why it matters:
-        - Random splits cause inflated accuracy (spatial autocorrelation)
-        - Nearby locations in both train/test leak information
-        - Spatial CV is required for valid geospatial ML evaluation
-
-    Example:
-        >>> cv = SpatialBlockCV(n_splits=5)
-        >>> scores = cross_val_score(model, X, y, cv=cv, scoring='r2')
-    """
+    """Splits data geographically to prevent spatial leakage in CV evaluation."""
 
     def __init__(self, n_splits: int = 5, buffer_ratio: float = 0.0):
-        """
-        Args:
-            n_splits: Number of spatial folds (default 5)
-            buffer_ratio: Buffer zone between train/test regions (0-0.5)
-        """
         self.n_splits = n_splits
         self.buffer_ratio = buffer_ratio
 
@@ -153,20 +121,7 @@ def compare_cv_methods(
     y: np.ndarray,
     n_splits: int = 5
 ) -> Dict[str, Any]:
-    """
-    Compare standard (random) CV vs spatial CV.
-
-    This shows the performance gap caused by spatial data leakage.
-
-    Args:
-        model: Sklearn-compatible model
-        X: Feature array
-        y: Target array
-        n_splits: Number of CV folds
-
-    Returns:
-        Dict with both CV results and performance gap
-    """
+    """Compares standard random CV vs spatial CV to show the leakage gap."""
     # Standard CV - often gives inflated scores
     standard_cv = KFold(n_splits=n_splits, shuffle=True, random_state=42)
     standard_scores = cross_val_score(model, X, y, cv=standard_cv, scoring='r2', n_jobs=-1)
@@ -194,30 +149,10 @@ def compare_cv_methods(
     }
 
 
-# =============================================================================
-# 2. HYPERPARAMETER TUNING WITH OPTUNA
-# =============================================================================
-
 class HyperparameterTuner:
-    """
-    Hyperparameter Tuning using Optuna (Bayesian Optimization)
-
-    Purpose:
-        Automatically find optimal model parameters using efficient
-        Bayesian optimization instead of grid/random search.
-
-    Why it matters:
-        - Fixed parameters are rarely optimal
-        - Tuning can improve model performance by 5-15%
-        - Shows rigorous ML methodology in academic papers
-    """
+    """Bayesian hyperparameter tuning via Optuna."""
 
     def __init__(self, use_spatial_cv: bool = True, n_splits: int = 5):
-        """
-        Args:
-            use_spatial_cv: Use spatial CV during tuning (recommended)
-            n_splits: Number of CV folds
-        """
         if not OPTUNA_AVAILABLE:
             raise ImportError("Optuna not installed. Run: pip install optuna")
 
@@ -239,18 +174,6 @@ class HyperparameterTuner:
         n_trials: int = 50,
         timeout: Optional[int] = None
     ) -> Dict[str, Any]:
-        """
-        Tune XGBoost hyperparameters.
-
-        Args:
-            X: Feature array
-            y: Target array
-            n_trials: Number of optimization trials (default 50)
-            timeout: Max seconds (optional)
-
-        Returns:
-            Dict with best params and optimization results
-        """
         if not XGBOOST_AVAILABLE:
             raise ImportError("XGBoost not available")
 
@@ -369,30 +292,10 @@ class HyperparameterTuner:
             raise ValueError(f"Unknown model_type: {model_type}")
 
 
-# =============================================================================
-# 3. MODEL ENSEMBLE
-# =============================================================================
-
 class ScoringEnsemble:
-    """
-    Ensemble of Multiple Models
-
-    Purpose:
-        Combines XGBoost, LightGBM, and CatBoost for more robust predictions.
-        Uses weighted averaging based on each model's CV performance.
-
-    Why it matters:
-        - Single models can have high variance
-        - Ensemble reduces overfitting and improves stability
-        - Different models capture different patterns
-    """
+    """Weighted ensemble of XGBoost, LightGBM, and CatBoost — weights based on spatial CV score."""
 
     def __init__(self, use_tuning: bool = False, n_tuning_trials: int = 30):
-        """
-        Args:
-            use_tuning: Whether to tune individual models with Optuna
-            n_tuning_trials: Number of tuning trials per model
-        """
         self.use_tuning = use_tuning
         self.n_tuning_trials = n_tuning_trials
         self.models = {}
@@ -426,16 +329,6 @@ class ScoringEnsemble:
         return models
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> 'ScoringEnsemble':
-        """
-        Fit all ensemble models.
-
-        Args:
-            X: Feature array
-            y: Target array
-
-        Returns:
-            Self (for method chaining)
-        """
         logger.info("Fitting ensemble models...")
 
         # Create models (with or without tuning)
@@ -524,12 +417,7 @@ class ScoringEnsemble:
         return np.average(predictions, axis=0, weights=weights)
 
     def predict_with_uncertainty(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Predict with uncertainty estimation.
-
-        Returns:
-            Tuple of (mean_predictions, std_across_models)
-        """
+        """Returns (mean_prediction, std_across_models) for uncertainty estimates."""
         if not self.is_fitted:
             raise ValueError("Ensemble not fitted.")
 
@@ -560,10 +448,6 @@ class ScoringEnsemble:
         return importances
 
 
-# =============================================================================
-# MAIN TRAINING FUNCTION
-# =============================================================================
-
 def train_with_enhancements(
     X: np.ndarray,
     y: np.ndarray,
@@ -572,30 +456,7 @@ def train_with_enhancements(
     use_ensemble: bool = True,
     n_tuning_trials: int = 50
 ) -> Dict[str, Any]:
-    """
-    Train scoring model with all enhancements.
-
-    This is the main function that combines:
-    1. Spatial cross-validation for honest evaluation
-    2. Optuna hyperparameter tuning (optional)
-    3. Model ensemble for robust predictions (optional)
-
-    Args:
-        X: Feature array (n_samples, n_features)
-        y: Target array (n_samples,)
-        use_spatial_cv: Use spatial CV for evaluation
-        use_tuning: Use Optuna for hyperparameter tuning
-        use_ensemble: Use model ensemble instead of single model
-        n_tuning_trials: Number of Optuna trials
-
-    Returns:
-        Dict containing:
-        - model: Trained model or ensemble
-        - model_type: 'xgboost', 'lightgbm', or 'ensemble'
-        - metrics: Training and CV metrics
-        - cv_comparison: Standard vs spatial CV comparison
-        - tuning_results: Optuna results (if tuning enabled)
-    """
+    """Main training entry point — runs spatial CV, optional Optuna tuning, and ensemble."""
     results = {
         'model': None,
         'model_type': None,
@@ -687,12 +548,8 @@ def train_with_enhancements(
     return results
 
 
-# =============================================================================
-# UTILITY FUNCTIONS
-# =============================================================================
-
 def check_available_packages() -> Dict[str, bool]:
-    """Check which ML packages are available."""
+    """Returns which optional ML packages are installed."""
     return {
         'xgboost': XGBOOST_AVAILABLE,
         'optuna': OPTUNA_AVAILABLE,

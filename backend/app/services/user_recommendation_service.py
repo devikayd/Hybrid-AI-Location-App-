@@ -1,11 +1,5 @@
 """
-User-Based Recommendation Service - Recommendations based on user interactions
-
-Enhanced with:
-- Hybrid recommendations (content + collaborative + implicit feedback)
-- Diversity-aware re-ranking (MMR)
-- Contextual bandits for cold-start exploration
-- Implicit feedback weighting (recency decay)
+Recommendation service — content-based and hybrid filtering using user interaction history.
 """
 
 import logging
@@ -453,13 +447,7 @@ class UserRecommendationService:
             return []
 
     async def update_feedback(self, item_id: str, positive: bool):
-        """
-        Update contextual bandit with user feedback for explore-exploit learning.
-
-        Args:
-            item_id: Item that received feedback
-            positive: Whether feedback was positive (like/save)
-        """
+        """Update contextual bandit with user feedback for explore-exploit learning."""
         if self.use_enhancements:
             recommendation_enhancements.update_feedback(item_id, positive)
 
