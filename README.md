@@ -1,4 +1,4 @@
-# Hybrid AI Location Intelligence Web App
+# Hybrid AI Location Intelligence Web App 🗺️
 
 A web app that gives you safety and location insights for any UK city. It pulls in real-time data from crime reports, events, news, and points of interest, then uses machine learning to score how safe or popular a location is. You can also chat with an AI assistant, get a day trip plan, and see personalised recommendations based on what you've liked before.
 
@@ -6,7 +6,7 @@ This was built as part of my MSc Data Science project.
 
 ---
 
-## What it does
+## What it does✨
 
 - Safety and popularity scores for any UK location using XGBoost models trained on crime, POI, news and event data
 - Interactive Leaflet map with layers you can toggle — crimes, events, POIs, news
@@ -17,17 +17,17 @@ This was built as part of my MSc Data Science project.
 
 ---
 
-## Tech Stack
+## Tech Stack🛠️  
 
-**Backend** — Python, FastAPI, SQLAlchemy, XGBoost, scikit-learn, NLTK, Redis
+**Backend**⚙️ — Python, FastAPI, SQLAlchemy, XGBoost, scikit-learn, NLTK, Redis
 
-**Frontend** — React 18, Vite, Tailwind CSS, React-Leaflet, Zustand, TanStack Query
+**Frontend**🎨 — React 18, Vite, Tailwind CSS, React-Leaflet, Zustand, TanStack Query
 
-**LLM** — DeepSeek Chat via OpenRouter
+**LLM**🤖 — DeepSeek Chat via OpenRouter
 
 ---
 
-## Data Sources
+## Data Sources👩🏻‍💻🗂️
 
 | Source | What it provides | Link |
 |--------|-----------------|------|
@@ -43,7 +43,7 @@ UK Police, OpenStreetMap, Overpass, and Nominatim are all free with no API key n
 
 ---
 
-## Requirements
+## Requirements📋
 
 - Python 3.10+
 - Node.js 18+
@@ -52,9 +52,9 @@ UK Police, OpenStreetMap, Overpass, and Nominatim are all free with no API key n
 
 ---
 
-## Setup
+## Setup🚀
 
-### Backend
+### Backend⚙️
 
 ```bash
 cd backend
@@ -70,7 +70,7 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 
-### Frontend
+### Frontend🎨
 
 ```bash
 cd frontend
@@ -84,7 +84,7 @@ API docs at `http://localhost:8000/docs`
 
 ---
 
-## Environment Variables
+## Environment Variables🔑
 
 Copy `.env.example` to `.env` inside the `backend/` folder and fill in your keys:
 
@@ -106,7 +106,7 @@ DEBUG=True
 
 ---
 
-## Project Structure
+## Project Structure📁
 
 ```
 ├── backend/
@@ -129,7 +129,7 @@ DEBUG=True
 
 ---
 
-## Main API Endpoints
+## Main API Endpoints🔌
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
