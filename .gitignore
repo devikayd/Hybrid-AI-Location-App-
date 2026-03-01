@@ -160,6 +160,22 @@ playwright/.cache/
 # Local development
 .local/
 
+# Claude AI workspace
+.claude/
+
+# Mobile app (not included in repo)
+mobile/
+
+# ML model files (large binaries, retrain locally)
+*.pkl
+*.joblib
+
+# CatBoost training output
+catboost_info/
+
+# Test scripts with API keys
+test_api_keys.py
+
 
 
 
