@@ -142,3 +142,7 @@ DEBUG=True
 | GET | `/api/v1/recommendations` | personalised recommendations |
 
 ---
+
+## License
+
+© 2026 Devika Y D. All rights reserved. Built as part of an MSc Data Science dissertation project.
