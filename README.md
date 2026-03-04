@@ -17,7 +17,7 @@ This was built as part of my MSc Data Science project.
 
 ---
 
-## Tech Stack🛠️  
+## Tech Stack🛠️
 
 **Backend**⚙️ — Python, FastAPI, SQLAlchemy, XGBoost, scikit-learn, NLTK, Redis
 
@@ -29,15 +29,15 @@ This was built as part of my MSc Data Science project.
 
 ## Data Sources👩🏻‍💻🗂️
 
-| Source | What it provides | Link |
-|--------|-----------------|------|
-| UK Police API | Crime data | https://data.police.uk/docs/ |
-| Ticketmaster | Local events | https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/ |
-| OpenStreetMap / Overpass | Points of interest | https://overpass-api.de/ |
-| NewsAPI | Local news | https://newsapi.org/ |
-| OpenRouteService | Walking routes and travel times | https://openrouteservice.org/dev/#/signup |
-| OpenRouter | LLM access for the chatbot | https://openrouter.ai/ |
-| Nominatim | Geocoding | https://nominatim.org/ |
+| Source                   | What it provides                | Link                                                                        |
+| ------------------------ | ------------------------------- | --------------------------------------------------------------------------- |
+| UK Police API            | Crime data                      | https://data.police.uk/docs/                                                |
+| Ticketmaster             | Local events                    | https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/ |
+| OpenStreetMap / Overpass | Points of interest              | https://overpass-api.de/                                                    |
+| NewsAPI                  | Local news                      | https://newsapi.org/                                                        |
+| OpenRouteService         | Walking routes and travel times | https://openrouteservice.org/dev/#/signup                                   |
+| OpenRouter               | LLM access for the chatbot      | https://openrouter.ai/                                                      |
+| Nominatim                | Geocoding                       | https://nominatim.org/                                                      |
 
 UK Police, OpenStreetMap, Overpass, and Nominatim are all free with no API key needed. The others need a free account.
 
@@ -131,15 +131,15 @@ DEBUG=True
 
 ## Main API Endpoints🔌
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/location-data` | crimes, events, POIs, news for a location |
-| GET | `/api/v1/scores` | safety and popularity scores |
-| POST | `/api/v1/chat` | send a message to the chatbot |
-| POST | `/api/v1/trip-plan` | generate a day trip itinerary |
-| GET | `/api/v1/summary` | AI summary for a location |
-| POST | `/api/v1/interactions` | log a like or save |
-| GET | `/api/v1/recommendations` | personalised recommendations |
+| Method | Endpoint                  | Description                               |
+| ------ | ------------------------- | ----------------------------------------- |
+| GET    | `/api/v1/location-data`   | crimes, events, POIs, news for a location |
+| GET    | `/api/v1/scores`          | safety and popularity scores              |
+| POST   | `/api/v1/chat`            | send a message to the chatbot             |
+| POST   | `/api/v1/trip-plan`       | generate a day trip itinerary             |
+| GET    | `/api/v1/summary`         | AI summary for a location                 |
+| POST   | `/api/v1/interactions`    | log a like or save                        |
+| GET    | `/api/v1/recommendations` | personalised recommendations              |
 
 ---
 

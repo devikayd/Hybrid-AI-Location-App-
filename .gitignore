@@ -161,8 +161,9 @@ playwright/.cache/
 # Local development
 .local/
 
-# Claude AI workspace
+# workspace
 .claude/
+.cur*
 
 # Mobile app (not included in repo)
 mobile/
