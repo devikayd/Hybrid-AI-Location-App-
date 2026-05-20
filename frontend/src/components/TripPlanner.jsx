@@ -1,37 +1,40 @@
 import { useState } from 'react';
 import { useMapStore } from '../stores/mapStore';
 import { getTripPlan } from '../services/api';
+import { STOP_COLOURS, resolveStopColour } from './layers/TripRouteLayer';
 
 function SafetyBadge({ score }) {
-  if (score >= 7) return (
-    <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">
-      Safe {score}/10
-    </span>
-  );
-  if (score >= 5) return (
-    <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
-      Moderate {score}/10
-    </span>
-  );
+  const display = (score * 10).toFixed(1);
+  const cfg = score >= 0.7
+    ? { bg: 'bg-green-100', text: 'text-green-800', label: 'Generally Safe' }
+    : score >= 0.5
+    ? { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Stay Aware' }
+    : { bg: 'bg-red-100',   text: 'text-red-800',   label: 'High Caution' };
+
   return (
-    <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800">
-      Caution {score}/10
+    <span className={`flex-shrink-0 inline-block rounded px-2 py-1 text-center ${cfg.bg} ${cfg.text}`}>
+      <span className="block text-xs font-bold whitespace-nowrap">Safety Score {display}/10</span>
+      <span className="block text-xs font-normal">{cfg.label}</span>
     </span>
   );
 }
 
-function StopCard({ stop }) {
+function StopCard({ stop, colour, isStart, isEnd }) {
   return (
     <div className="flex gap-3 py-3 border-b border-gray-100 last:border-0">
-      {/* Stop number badge */}
-      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+      <div
+        className="flex-shrink-0 w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center"
+        style={{ backgroundColor: colour }}
+      >
         {stop.stop_index}
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-semibold text-gray-800 leading-tight truncate">
+          <p className="text-sm font-semibold text-gray-800 leading-tight truncate min-w-0">
             {stop.name}
+            {isStart && <span className="ml-1 text-xs font-normal" style={{ color: STOP_COLOURS.start }}>· Start</span>}
+            {isEnd   && <span className="ml-1 text-xs font-normal" style={{ color: STOP_COLOURS.end }}>· End</span>}
           </p>
           <SafetyBadge score={stop.safety_score} />
         </div>
@@ -39,8 +42,8 @@ function StopCard({ stop }) {
         <p className="text-xs text-gray-500 mt-0.5 capitalize">{stop.category}</p>
 
         {stop.travel_time_text && (
-          <p className="text-xs text-blue-600 mt-1">
-            {stop.stop_index === 1 ? 'First stop' : `↑ ${stop.travel_time_text} from previous`}
+          <p className="text-xs mt-1" style={{ color: colour }}>
+            {isStart ? 'First stop' : `↑ ${stop.travel_time_text} from previous`}
           </p>
         )}
 
@@ -142,9 +145,20 @@ export default function TripPlanner() {
               </div>
 
               <div>
-                {tripPlan.stops.map((stop) => (
-                  <StopCard key={stop.stop_index} stop={stop} />
-                ))}
+                {tripPlan.stops.map((stop) => {
+                  const totalStops = tripPlan.stops.length;
+                  const isStart = stop.stop_index === 1;
+                  const isEnd = stop.stop_index === totalStops;
+                  return (
+                    <StopCard
+                      key={stop.stop_index}
+                      stop={stop}
+                      colour={resolveStopColour(stop, totalStops)}
+                      isStart={isStart}
+                      isEnd={isEnd}
+                    />
+                  );
+                })}
               </div>
 
               <p className="text-xs text-gray-400 mt-2 text-center">

@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 import { useMapStore } from '../stores/mapStore';
 import CrimesLayer from './layers/CrimesLayer';
 import EventsLayer from './layers/EventsLayer';
@@ -9,16 +8,6 @@ import NewsLayer from './layers/NewsLayer';
 import POIsLayer from './layers/POIsLayer';
 import TripRouteLayer from './layers/TripRouteLayer';
 
-// Fix default icon paths in Leaflet when bundled
-import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
-import marker from 'leaflet/dist/images/marker-icon.png';
-import shadow from 'leaflet/dist/images/marker-shadow.png';
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: marker2x,
-  iconUrl: marker,
-  shadowUrl: shadow,
-});
 
 // Derive a sensible zoom level from the Nominatim bounding box size.
 // Larger bbox = more zoomed out. This avoids flyToBounds which zooms out
@@ -105,20 +94,23 @@ export default function MapView() {
               line-height: 30px !important;
               font-size: 18px !important;
             }
+            .trip-stop-label {
+              background: rgba(30, 30, 30, 0.75) !important;
+              border: none !important;
+              box-shadow: none !important;
+              color: white !important;
+              font-weight: 600 !important;
+              font-size: 11px !important;
+              padding: 2px 6px !important;
+              border-radius: 4px !important;
+              white-space: nowrap !important;
+            }
+            .trip-stop-label::before {
+              display: none !important;
+            }
           `}</style>
 
-          <Marker position={[center.lat, center.lon]}>
-            <Popup>
-              <div className="text-center">
-                <div className="font-semibold text-primary-600">📍 Search Location</div>
-                <div className="text-sm text-gray-600 mt-1">
-                  {center.lat.toFixed(4)}, {center.lon.toFixed(4)}
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-
-          {layers.crimes && <CrimesLayer />}
+{layers.crimes && <CrimesLayer />}
           {layers.events && <EventsLayer />}
           {layers.news && <NewsLayer />}
           {layers.pois && <POIsLayer />}
